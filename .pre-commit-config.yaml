@@ -1,0 +1,35 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: local
+    hooks:
+      - id: zig-fmt
+        name: zig fmt
+        entry: zig fmt --check
+        language: system
+        files: '\.(zig|zon)$'
+        pass_filenames: true
+
+      - id: zig-build
+        name: zig build
+        entry: zig build
+        language: system
+        files: '\.(zig|zon)$'
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: zig-test
+        name: zig build test
+        entry: zig build test
+        language: system
+        files: '\.(zig|zon)$'
+        pass_filenames: false
+        stages: [pre-push]
