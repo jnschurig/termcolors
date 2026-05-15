@@ -2,7 +2,7 @@
     .name = .termcolors,
     .version = "0.0.0",
     .fingerprint = 0x7db4508b3c0a803d,
-    .minimum_zig_version = "0.15.0",
+    .minimum_zig_version = "0.16.0",
     .paths = .{
         "build.zig",
         "build.zig.zon",

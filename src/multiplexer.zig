@@ -3,8 +3,8 @@ const std = @import("std");
 pub const Kind = enum { none, tmux, screen };
 
 pub fn detect() Kind {
-    if (std.posix.getenv("TMUX") != null) return .tmux;
-    if (std.posix.getenv("STY") != null) return .screen;
+    if (std.c.getenv("TMUX") != null) return .tmux;
+    if (std.c.getenv("STY") != null) return .screen;
     return .none;
 }
 

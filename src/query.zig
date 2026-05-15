@@ -27,7 +27,7 @@ pub const Result = struct {
 };
 
 /// Writes every requested OSC query to `writer` in a single batch.
-pub fn writeQueries(writer: anytype, requests: []const Request) !void {
+pub fn writeQueries(writer: *std.Io.Writer, requests: []const Request) !void {
     for (requests) |req| {
         switch (req.kind) {
             .foreground => try writer.writeAll("\x1b]10;?\x07"),
@@ -165,22 +165,24 @@ fn replyToken(kind: parser.ReplyKind) u32 {
 }
 
 fn nowMs() u64 {
-    return @intCast(@divTrunc(std.time.milliTimestamp(), 1));
+    var ts: std.c.timespec = undefined;
+    _ = std.c.clock_gettime(.MONOTONIC, &ts);
+    return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(@divTrunc(ts.nsec, 1_000_000)));
 }
 
 // ===== tests =====
 
 test "writeQueries emits correct OSC sequences" {
     var buf: [256]u8 = undefined;
-    var stream = std.io.fixedBufferStream(&buf);
-    try writeQueries(stream.writer(), &.{
+    var w: std.Io.Writer = .fixed(&buf);
+    try writeQueries(&w, &.{
         .{ .kind = .foreground },
         .{ .kind = .palette_index, .index = 7 },
         .{ .kind = .background },
     });
     try std.testing.expectEqualStrings(
         "\x1b]10;?\x07\x1b]4;7;?\x07\x1b]11;?\x07",
-        stream.getWritten(),
+        w.buffered(),
     );
 }
 

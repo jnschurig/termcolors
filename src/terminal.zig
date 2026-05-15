@@ -10,9 +10,13 @@ pub const Error = error{
 };
 
 pub fn open() !posix.fd_t {
-    const fd = posix.open("/dev/tty", .{ .ACCMODE = .RDWR }, 0) catch return Error.NoTty;
+    const fd = posix.openat(posix.AT.FDCWD, "/dev/tty", .{ .ACCMODE = .RDWR }, 0) catch return Error.NoTty;
     tty_fd = fd;
     return fd;
+}
+
+pub fn close(fd: posix.fd_t) void {
+    _ = std.c.close(fd);
 }
 
 pub fn enterRaw(fd: posix.fd_t) !void {
@@ -29,7 +33,7 @@ pub fn enterRaw(fd: posix.fd_t) !void {
     raw.cc[@intFromEnum(posix.V.TIME)] = 0;
 
     try posix.tcsetattr(fd, .FLUSH, raw);
-    try installSignalHandlers();
+    installSignalHandlers();
 }
 
 pub fn restore() void {
@@ -41,21 +45,20 @@ pub fn restore() void {
     }
 }
 
-fn handleSignal(sig: c_int) callconv(.C) void {
+fn handleSignal(sig: posix.SIG) callconv(.c) void {
     restore();
-    // re-raise with default disposition so exit code is 128+sig
     const act = posix.Sigaction{
         .handler = .{ .handler = posix.SIG.DFL },
         .mask = posix.sigemptyset(),
         .flags = 0,
     };
-    posix.sigaction(@intCast(sig), &act, null);
-    _ = std.c.raise(sig);
+    posix.sigaction(sig, &act, null);
+    posix.raise(sig) catch {};
 }
 
-fn installSignalHandlers() !void {
+fn installSignalHandlers() void {
     const act = posix.Sigaction{
-        .handler = .{ .handler = handleSignal },
+        .handler = .{ .handler = &handleSignal },
         .mask = posix.sigemptyset(),
         .flags = 0,
     };

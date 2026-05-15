@@ -254,11 +254,10 @@ test "json output contains schema and known values" {
         .queried_at = "2026-05-14T12:34:56Z",
         .unsupported = &.{"cursor"},
     };
-    var buf: std.ArrayListUnmanaged(u8) = .empty;
-    defer buf.deinit(allocator);
-    var writer = buf.writer(allocator);
-    try write(&writer, ctx, .{});
-    const out = buf.items;
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    try write(&aw.writer, ctx, .{});
+    const out = aw.written();
     try std.testing.expect(std.mem.indexOf(u8, out, "\"schema_version\": 1") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "\"notation\": \"hex\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "\"#c5c8c6\"") != null); // foreground
@@ -271,12 +270,11 @@ test "json includes aliases when requested" {
     const pal = try makePalette(allocator);
     defer allocator.free(pal.indexed);
     const ctx = Context{ .palette = pal, .queried_at = "t" };
-    var buf: std.ArrayListUnmanaged(u8) = .empty;
-    defer buf.deinit(allocator);
-    var writer = buf.writer(allocator);
-    try write(&writer, ctx, .{ .include_aliases = true });
-    try std.testing.expect(std.mem.indexOf(u8, buf.items, "\"aliases\"") != null);
-    try std.testing.expect(std.mem.indexOf(u8, buf.items, "\"bright_white\": 15") != null);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    try write(&aw.writer, ctx, .{ .include_aliases = true });
+    try std.testing.expect(std.mem.indexOf(u8, aw.written(), "\"aliases\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, aw.written(), "\"bright_white\": 15") != null);
 }
 
 test "env output formats indexed and special" {
@@ -284,14 +282,13 @@ test "env output formats indexed and special" {
     const pal = try makePalette(allocator);
     defer allocator.free(pal.indexed);
     const ctx = Context{ .palette = pal, .queried_at = "t" };
-    var buf: std.ArrayListUnmanaged(u8) = .empty;
-    defer buf.deinit(allocator);
-    var writer = buf.writer(allocator);
-    try write(&writer, ctx, .{ .format = .env });
-    try std.testing.expect(std.mem.indexOf(u8, buf.items, "ANSI_0=#0000ff") != null);
-    try std.testing.expect(std.mem.indexOf(u8, buf.items, "ANSI_3=\n") != null); // null slot empty
-    try std.testing.expect(std.mem.indexOf(u8, buf.items, "ANSI_FG=#c5c8c6") != null);
-    try std.testing.expect(std.mem.indexOf(u8, buf.items, "ANSI_CURSOR=\n") != null);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    try write(&aw.writer, ctx, .{ .format = .env });
+    try std.testing.expect(std.mem.indexOf(u8, aw.written(), "ANSI_0=#0000ff") != null);
+    try std.testing.expect(std.mem.indexOf(u8, aw.written(), "ANSI_3=\n") != null); // null slot empty
+    try std.testing.expect(std.mem.indexOf(u8, aw.written(), "ANSI_FG=#c5c8c6") != null);
+    try std.testing.expect(std.mem.indexOf(u8, aw.written(), "ANSI_CURSOR=\n") != null);
 }
 
 test "flat output preserves position with blank lines" {
@@ -299,11 +296,10 @@ test "flat output preserves position with blank lines" {
     const pal = try makePalette(allocator);
     defer allocator.free(pal.indexed);
     const ctx = Context{ .palette = pal, .queried_at = "t" };
-    var buf: std.ArrayListUnmanaged(u8) = .empty;
-    defer buf.deinit(allocator);
-    var writer = buf.writer(allocator);
-    try write(&writer, ctx, .{ .format = .flat });
-    var lines = std.mem.splitScalar(u8, buf.items, '\n');
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    try write(&aw.writer, ctx, .{ .format = .flat });
+    var lines = std.mem.splitScalar(u8, aw.written(), '\n');
     var count: usize = 0;
     while (lines.next()) |_| count += 1;
     // 16 indexed + 5 special + trailing empty after final newline = 22
@@ -312,7 +308,7 @@ test "flat output preserves position with blank lines" {
 
 test "rgb notation" {
     var buf: [32]u8 = undefined;
-    var stream = std.io.fixedBufferStream(&buf);
-    try writeColor(stream.writer(), .{ .r = 29, .g = 31, .b = 33 }, .rgb);
-    try std.testing.expectEqualStrings("rgb(29 31 33)", stream.getWritten());
+    var w: std.Io.Writer = .fixed(&buf);
+    try writeColor(&w, .{ .r = 29, .g = 31, .b = 33 }, .rgb);
+    try std.testing.expectEqualStrings("rgb(29 31 33)", w.buffered());
 }

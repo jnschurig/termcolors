@@ -6,19 +6,18 @@ const palette = @import("palette.zig");
 const output = @import("output.zig");
 const multiplexer = @import("multiplexer.zig");
 
-pub fn main() !u8 {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !u8 {
+    const gpa = init.gpa;
+    const arena = init.arena.allocator();
+    const io = init.io;
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+    const args = try init.minimal.args.toSlice(arena);
 
-    var opts = cli.parse(allocator, args) catch |err| {
+    var opts = cli.parse(gpa, args) catch |err| {
         std.debug.print("argument error: {s}\n", .{@errorName(err)});
         return 1;
     };
-    defer opts.deinit(allocator);
+    defer opts.deinit(gpa);
 
     if (opts.help) {
         std.debug.print(
@@ -34,34 +33,44 @@ pub fn main() !u8 {
         std.debug.print("termcolors: no controlling tty (/dev/tty)\n", .{});
         return 2;
     };
-    defer std.posix.close(fd);
+    defer terminal.close(fd);
 
     try terminal.enterRaw(fd);
     defer terminal.restore();
 
     const palette_len: usize = if (opts.include_256) 256 else 16;
-    const indexed = try allocator.alloc(?palette.Color, palette_len);
-    defer allocator.free(indexed);
+    const indexed = try gpa.alloc(?palette.Color, palette_len);
+    defer gpa.free(indexed);
     @memset(indexed, null);
     var pal = palette.Palette{ .indexed = indexed };
 
     const mux = mapMultiplexer(multiplexer.detect());
 
     var requests: std.ArrayListUnmanaged(query.Request) = .empty;
-    defer requests.deinit(allocator);
+    defer requests.deinit(gpa);
     for (0..palette_len) |i| {
-        try requests.append(allocator, .{ .kind = .palette_index, .index = @intCast(i) });
+        try requests.append(gpa, .{ .kind = .palette_index, .index = @intCast(i) });
     }
-    try requests.append(allocator, .{ .kind = .foreground });
-    try requests.append(allocator, .{ .kind = .background });
-    try requests.append(allocator, .{ .kind = .cursor });
-    try requests.append(allocator, .{ .kind = .selection_bg });
-    try requests.append(allocator, .{ .kind = .selection_fg });
+    try requests.append(gpa, .{ .kind = .foreground });
+    try requests.append(gpa, .{ .kind = .background });
+    try requests.append(gpa, .{ .kind = .cursor });
+    try requests.append(gpa, .{ .kind = .selection_bg });
+    try requests.append(gpa, .{ .kind = .selection_fg });
 
-    var tty_file = std.fs.File{ .handle = fd };
-    try query.writeQueries(tty_file.writer(), requests.items);
+    var aw: std.Io.Writer.Allocating = .init(gpa);
+    defer aw.deinit();
+    try query.writeQueries(&aw.writer, requests.items);
+    {
+        const bytes = aw.written();
+        var remaining = bytes;
+        while (remaining.len > 0) {
+            const n = std.c.write(fd, remaining.ptr, remaining.len);
+            if (n <= 0) break;
+            remaining = remaining[@intCast(n)..];
+        }
+    }
 
-    const result = try query.readReplies(allocator, fd, opts.timeout_ms, requests.items, &pal);
+    const result = try query.readReplies(gpa, fd, opts.timeout_ms, requests.items, &pal);
 
     if (mux != .none and result.unsupported_count == requests.items.len) {
         std.debug.print(
@@ -72,15 +81,17 @@ pub fn main() !u8 {
     }
 
     var unsupported: std.ArrayListUnmanaged([]const u8) = .empty;
-    defer unsupported.deinit(allocator);
-    if (pal.foreground == null) try unsupported.append(allocator, "foreground");
-    if (pal.background == null) try unsupported.append(allocator, "background");
-    if (pal.cursor == null) try unsupported.append(allocator, "cursor");
-    if (pal.selection_background == null) try unsupported.append(allocator, "selection_background");
-    if (pal.selection_foreground == null) try unsupported.append(allocator, "selection_foreground");
+    defer unsupported.deinit(gpa);
+    if (pal.foreground == null) try unsupported.append(gpa, "foreground");
+    if (pal.background == null) try unsupported.append(gpa, "background");
+    if (pal.cursor == null) try unsupported.append(gpa, "cursor");
+    if (pal.selection_background == null) try unsupported.append(gpa, "selection_background");
+    if (pal.selection_foreground == null) try unsupported.append(gpa, "selection_foreground");
 
     var ts_buf: [32]u8 = undefined;
-    const ts = try formatRfc3339Utc(&ts_buf, std.time.timestamp());
+    var now_ts: std.c.timespec = undefined;
+    _ = std.c.clock_gettime(.REALTIME, &now_ts);
+    const ts = try formatRfc3339Utc(&ts_buf, now_ts.sec);
 
     const ctx = output.Context{
         .palette = pal,
@@ -89,8 +100,11 @@ pub fn main() !u8 {
         .multiplexer = mux,
     };
 
-    const stdout = std.io.getStdOut().writer();
-    try output.write(stdout, ctx, opts);
+    const stdout_file = std.Io.File.stdout();
+    var stdout_buf: [4096]u8 = undefined;
+    var stdout_writer = std.Io.File.Writer.init(stdout_file, io, &stdout_buf);
+    try output.write(&stdout_writer.interface, ctx, opts);
+    try stdout_writer.interface.flush();
 
     return 0;
 }
