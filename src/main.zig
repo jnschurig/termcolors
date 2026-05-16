@@ -80,6 +80,11 @@ pub fn main(init: std.process.Init) !u8 {
         return 3;
     }
 
+    const notice: ?[]const u8 = if (result.unsupported_count == requests.items.len)
+        "no OSC color replies received; terminal may not support color queries (e.g. nvim :terminal)"
+    else
+        null;
+
     var unsupported: std.ArrayListUnmanaged([]const u8) = .empty;
     defer unsupported.deinit(gpa);
     if (pal.foreground == null) try unsupported.append(gpa, "foreground");
@@ -98,6 +103,7 @@ pub fn main(init: std.process.Init) !u8 {
         .unsupported = unsupported.items,
         .queried_at = ts,
         .multiplexer = mux,
+        .notice = notice,
     };
 
     const stdout_file = std.Io.File.stdout();

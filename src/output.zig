@@ -27,6 +27,10 @@ pub const Context = struct {
     /// RFC 3339 timestamp string; output.zig does not generate it, callers do.
     queried_at: []const u8,
     multiplexer: Multiplexer = .none,
+    /// Free-form advisory shown in meta.notice when set. Used to flag conditions
+    /// like "no OSC replies at all" that aren't fatal but explain null output
+    /// (e.g. running inside nvim :terminal, or a terminal that ignores OSC 4/10/11).
+    notice: ?[]const u8 = null,
 };
 
 const ALIAS_NAMES = [_][]const u8{
@@ -135,9 +139,14 @@ fn writeJson(writer: anytype, ctx: Context, opts: cli.Options) !void {
     }
     try writer.writeAll("],\n");
     if (ctx.multiplexer.jsonName()) |m| {
-        try writer.print("    \"multiplexer\": \"{s}\"\n", .{m});
+        try writer.print("    \"multiplexer\": \"{s}\",\n", .{m});
     } else {
-        try writer.writeAll("    \"multiplexer\": null\n");
+        try writer.writeAll("    \"multiplexer\": null,\n");
+    }
+    if (ctx.notice) |n| {
+        try writer.print("    \"notice\": \"{s}\"\n", .{n});
+    } else {
+        try writer.writeAll("    \"notice\": null\n");
     }
     try writer.writeAll("  }\n}\n");
 }
