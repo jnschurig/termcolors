@@ -25,6 +25,7 @@ pub const Slot = union(enum) {
     fg,
     bg,
     cursor,
+    cursor_text,
     selection_bg,
     selection_fg,
     palette_index: u8,
@@ -244,6 +245,8 @@ fn parseOnly(allocator: std.mem.Allocator, csv: []const u8) ParseError![]Slot {
             .bg
         else if (std.mem.eql(u8, tok, "cursor"))
             .cursor
+        else if (std.mem.eql(u8, tok, "cursor_text"))
+            .cursor_text
         else if (std.mem.eql(u8, tok, "selection_bg"))
             .selection_bg
         else if (std.mem.eql(u8, tok, "selection_fg"))

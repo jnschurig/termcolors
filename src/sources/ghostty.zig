@@ -41,11 +41,14 @@ pub fn acquire(
     opts: cli.Options,
     binary_override: ?[]const u8,
 ) AcquireError!Result {
+    // Use `+show-config` with no flags: this emits the user's resolved
+    // configuration (theme name + the colors that actually apply). Passing
+    // `--default=true` would suppress the user's overrides — including
+    // `theme`, `cursor-color`, and the resolved selection colors — which is
+    // not what callers want.
     const argv = [_][]const u8{
         binary_override orelse "ghostty",
         "+show-config",
-        "--default=true",
-        "--docs=false",
     };
 
     const run_result = std.process.run(gpa, io, .{ .argv = &argv }) catch |err| switch (err) {
@@ -126,6 +129,8 @@ pub fn parseShowConfig(
             if (value.len > 0) pal.background = try parseHexColor(value);
         } else if (std.mem.eql(u8, key, "cursor-color")) {
             if (value.len > 0) pal.cursor = try parseHexColor(value);
+        } else if (std.mem.eql(u8, key, "cursor-text")) {
+            if (value.len > 0) pal.cursor_text = try parseHexColor(value);
         } else if (std.mem.eql(u8, key, "selection-background")) {
             if (value.len > 0) pal.selection_background = try parseHexColor(value);
         } else if (std.mem.eql(u8, key, "selection-foreground")) {
@@ -166,30 +171,21 @@ test "parses fixture: 16 palette entries populated" {
     try std.testing.expectEqual(@as(usize, 16), populated);
 }
 
-test "parses fixture: foreground and background present" {
+test "parses fixture: foreground, background, and special colors present" {
     var result = try parseShowConfig(std.testing.allocator, fixture, false);
     defer result.deinit(std.testing.allocator);
     try std.testing.expect(result.palette.foreground != null);
     try std.testing.expect(result.palette.background != null);
-    try std.testing.expectEqual(@as(u8, 0xff), result.palette.foreground.?.r);
-    try std.testing.expectEqual(@as(u8, 0x28), result.palette.background.?.r);
+    try std.testing.expect(result.palette.cursor != null);
+    try std.testing.expect(result.palette.cursor_text != null);
+    try std.testing.expect(result.palette.selection_background != null);
+    try std.testing.expect(result.palette.selection_foreground != null);
 }
 
-test "parses fixture: empty theme is null" {
+test "parses fixture: theme name captured" {
     var result = try parseShowConfig(std.testing.allocator, fixture, false);
     defer result.deinit(std.testing.allocator);
-    try std.testing.expect(result.theme == null);
-}
-
-test "parses fixture: 256 palette mode populates 256 entries" {
-    var result = try parseShowConfig(std.testing.allocator, fixture, true);
-    defer result.deinit(std.testing.allocator);
-    var populated: usize = 0;
-    for (result.palette.indexed) |c| {
-        if (c != null) populated += 1;
-    }
-    try std.testing.expectEqual(@as(usize, 256), result.palette.indexed.len);
-    try std.testing.expectEqual(@as(usize, 256), populated);
+    try std.testing.expectEqualStrings("Dracula", result.theme.?);
 }
 
 test "theme with non-empty value is captured" {

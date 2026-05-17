@@ -47,8 +47,8 @@ const ALIAS_NAMES = [_][]const u8{
 };
 
 const SPECIAL_NAMES = [_][]const u8{
-    "foreground",           "background",           "cursor",
-    "selection_background", "selection_foreground",
+    "foreground",  "background",           "cursor",
+    "cursor_text", "selection_background", "selection_foreground",
 };
 
 pub fn write(
@@ -103,6 +103,7 @@ fn writeJson(writer: anytype, ctx: Context, opts: cli.Options) !void {
         .{ .name = "foreground", .val = ctx.palette.foreground, .slot = .fg },
         .{ .name = "background", .val = ctx.palette.background, .slot = .bg },
         .{ .name = "cursor", .val = ctx.palette.cursor, .slot = .cursor },
+        .{ .name = "cursor_text", .val = ctx.palette.cursor_text, .slot = .cursor_text },
         .{ .name = "selection_background", .val = ctx.palette.selection_background, .slot = .selection_bg },
         .{ .name = "selection_foreground", .val = ctx.palette.selection_foreground, .slot = .selection_fg },
     };
@@ -175,6 +176,7 @@ fn writeEnv(writer: anytype, ctx: Context, opts: cli.Options) !void {
     try writeEnvSpecial(writer, "FG", ctx.palette.foreground, .fg, opts);
     try writeEnvSpecial(writer, "BG", ctx.palette.background, .bg, opts);
     try writeEnvSpecial(writer, "CURSOR", ctx.palette.cursor, .cursor, opts);
+    try writeEnvSpecial(writer, "CURSOR_TEXT", ctx.palette.cursor_text, .cursor_text, opts);
     try writeEnvSpecial(writer, "SELECTION_BG", ctx.palette.selection_background, .selection_bg, opts);
     try writeEnvSpecial(writer, "SELECTION_FG", ctx.palette.selection_foreground, .selection_fg, opts);
 
@@ -221,6 +223,7 @@ fn writeFlat(writer: anytype, ctx: Context, opts: cli.Options) !void {
         .{ .val = ctx.palette.foreground, .slot = .fg },
         .{ .val = ctx.palette.background, .slot = .bg },
         .{ .val = ctx.palette.cursor, .slot = .cursor },
+        .{ .val = ctx.palette.cursor_text, .slot = .cursor_text },
         .{ .val = ctx.palette.selection_background, .slot = .selection_bg },
         .{ .val = ctx.palette.selection_foreground, .slot = .selection_fg },
     };
@@ -328,8 +331,8 @@ test "flat output preserves position with blank lines" {
     var lines = std.mem.splitScalar(u8, aw.written(), '\n');
     var count: usize = 0;
     while (lines.next()) |_| count += 1;
-    // 16 indexed + 5 special + 1 meta.source (theme omitted when null) + trailing empty = 23
-    try std.testing.expectEqual(@as(usize, 23), count);
+    // 16 indexed + 6 special + 1 meta.source (theme omitted when null) + trailing empty = 24
+    try std.testing.expectEqual(@as(usize, 24), count);
 }
 
 test "json output emits meta.source and null meta.theme by default" {
