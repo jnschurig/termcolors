@@ -10,7 +10,7 @@ Colors are queried at runtime via OSC escape sequences (`ESC ] 4 ; n ; ? BEL`, `
 
 ## Install
 
-Requires Zig `>= 0.15.0`.
+Zig toolchain version is pinned via `mise.toml`.
 
 ```sh
 zig build -Doptimize=ReleaseFast
@@ -30,6 +30,8 @@ zig build release
 termcolors [--format=json|env|flat] [--color=hex|rgb|hsl|oklch]
            [--only=...] [--timeout-ms=N] [--include-aliases]
            [--include-256] [--no-multiplexer-wrap]
+           [--source=auto|osc|<emulator>|<abs-path>]
+           [--osc-min-palette=N]
 ```
 
 Default output is JSON with hex colors. Examples:
@@ -47,14 +49,68 @@ Inside `tmux` or `screen`, queries are automatically wrapped in passthrough sequ
 tmux set -g allow-passthrough on
 ```
 
+## Sources
+
+The OSC probe needs a live terminal. When `termcolors` runs in a headless context — nvim's `:terminal`, a hyprland keybind script, CI, an embedded service — there's no TTY to query, and even when there is one (e.g. nvim's terminal-emulator buffer), the host may not answer OSC.
+
+`--source` selects how colors are acquired:
+
+| Value | Behavior |
+|------|----------|
+| `auto` (default) | Run OSC first; if the result is insufficient, fall back to the configured emulator (see below). Never hard-fails — returns a null-filled palette as a last resort. |
+| `osc` | OSC only. Hard-fails with exit 2 if no TTY. |
+| `<emulator-name>` | Skip OSC; invoke that emulator's CLI directly. This cycle: `ghostty`. |
+| `<absolute-path>` | Skip OSC; invoke this exact binary. The basename must match a compiled-in source (e.g. `/opt/homebrew/bin/ghostty`). |
+
+Example: produce the active Ghostty palette from inside nvim's `:terminal`:
+
+```sh
+termcolors --source ghostty
+```
+
+### Picking a fallback for `auto`
+
+In `auto` mode, the fallback emulator (used when OSC fails or returns too few colors) comes from one of these, in priority order:
+
+1. `$TERMCOLORS_TERMINAL` environment variable. Value: an emulator name (e.g. `ghostty`) or an absolute path. Mode keywords (`auto`, `osc`) are not valid here.
+2. Config file key `termcolors_source` (see next section).
+
+If neither is set, `auto` runs OSC only — and silently degrades to a null-filled palette if even OSC produces nothing. Callers can branch on the data (`palette[0] == null`?) rather than on exit codes.
+
+The `--osc-min-palette N` flag (default 8, range 1–16) controls how many of the 16 base palette slots OSC must return to count as "sufficient" before the fallback is skipped. Lower it for more lenient OSC results; raise it to force fallback more aggressively.
+
+### Config file
+
+Optional. Resolved from `$XDG_CONFIG_HOME/termcolors/config` (when XDG is set) or `~/.config/termcolors/config`. Plain text, `key = value`, one pair per line. `#` starts a comment.
+
+Recognized keys:
+
+| Key | Meaning |
+|-----|---------|
+| `termcolors_source` | Fallback emulator for `--source auto`. Value: a known source name (`ghostty`) or an absolute path whose basename matches a known source. |
+
+Minimal example:
+
+```
+# ~/.config/termcolors/config
+termcolors_source = ghostty
+```
+
+### Output metadata
+
+`meta.source` (always present in every format) records which source actually produced the colors — `"osc"` or an emulator name. Treat it as an open string set: future versions will add more values. Don't strict-enum-check it.
+
+`meta.theme` is the theme name reported by emulator sources that expose one (Ghostty); `null` for OSC.
+
 ## Exit codes
 
 | Code | Meaning |
 |------|---------|
-| 0    | success |
-| 1    | argument error |
-| 2    | no controlling tty (`/dev/tty` unavailable) |
-| 3    | running inside a multiplexer with no passthrough |
+| 0    | success (including `--source auto` falling back to a null-filled palette) |
+| 1    | argument error or config-file error |
+| 2    | `--source osc` with no controlling tty |
+| 3    | running inside a multiplexer with no passthrough (when no fallback succeeded) |
+| 4    | emulator source failed: binary missing, subprocess error, or malformed output |
 
 ## Development
 

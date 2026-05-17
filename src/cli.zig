@@ -30,6 +30,34 @@ pub const Slot = union(enum) {
     palette_index: u8,
 };
 
+/// Names of compiled-in emulator sources. Single source of truth for both
+/// `--source` parsing and config-file parsing.
+pub const KNOWN_SOURCES = [_][]const u8{"ghostty"};
+
+/// Resolved value for `--source` / `$TERMCOLORS_TERMINAL` / config `termcolors_source`.
+pub const Source = union(enum) {
+    auto,
+    osc,
+    emulator: Emulator,
+
+    pub const Emulator = struct {
+        /// One of `KNOWN_SOURCES`.
+        name: []const u8,
+        /// Absolute path explicitly provided by the user; null means look up
+        /// `name` on `$PATH`. When non-null, the slice is owned by the caller's
+        /// allocator and freed in `deinit`.
+        binary: ?[]u8 = null,
+    };
+
+    pub fn deinit(self: *Source, allocator: std.mem.Allocator) void {
+        switch (self.*) {
+            .emulator => |*e| if (e.binary) |b| allocator.free(b),
+            else => {},
+        }
+        self.* = .auto;
+    }
+};
+
 pub const Options = struct {
     format: Format = .json,
     notation: Notation = .hex,
@@ -41,10 +69,22 @@ pub const Options = struct {
     no_multiplexer_wrap: bool = false,
     /// True if `--help` was requested. main() should print usage and exit 0.
     help: bool = false,
+    /// Resolved `--source` value. Default `.auto`.
+    source: Source = .auto,
+    /// Fallback emulator parsed from `$TERMCOLORS_TERMINAL` for use by the
+    /// `auto` algorithm. Only populated when `source == .auto`. The dispatcher
+    /// in main consults this before the config-file value.
+    env_fallback: ?Source = null,
+    /// Minimum filled palette slots (out of 16) for an OSC result to count as
+    /// "sufficient" in `auto` mode. Range [1, 16].
+    osc_min_palette: u8 = 8,
 
     pub fn deinit(self: *Options, allocator: std.mem.Allocator) void {
         if (self.only) |only| allocator.free(only);
         self.only = null;
+        self.source.deinit(allocator);
+        if (self.env_fallback) |*ef| ef.deinit(allocator);
+        self.env_fallback = null;
     }
 };
 
@@ -52,11 +92,64 @@ pub const ParseError = error{
     UnknownFlag,
     MissingValue,
     InvalidValue,
+    /// Used when a setting that must name an emulator was given a mode keyword
+    /// (`auto` / `osc`) instead. Caller emits a friendly diagnostic.
+    ModeKeywordWhereEmulatorExpected,
     OutOfMemory,
 };
 
 const TIMEOUT_MIN: u32 = 25;
 const TIMEOUT_MAX: u32 = 5000;
+const OSC_MIN_PALETTE_LOW: u8 = 1;
+const OSC_MIN_PALETTE_HIGH: u8 = 16;
+
+/// Parse the textual value of `--source` / `$TERMCOLORS_TERMINAL` / config key.
+/// Allowed forms:
+///   * `auto`, `osc` — mode keywords (returned as `.auto` / `.osc`).
+///   * `<name>` — name of a compiled-in emulator (must be in `KNOWN_SOURCES`).
+///   * `/abs/path/to/<name>` — absolute path whose basename matches a known source.
+///
+/// `allow_modes = false` rejects `auto`/`osc` with `ModeKeywordWhereEmulatorExpected`
+/// (used for env-var and config-file inputs which only accept emulators).
+pub fn parseSource(
+    allocator: std.mem.Allocator,
+    value: []const u8,
+    allow_modes: bool,
+) ParseError!Source {
+    if (value.len == 0) return ParseError.InvalidValue;
+    if (std.mem.eql(u8, value, "auto")) {
+        return if (allow_modes) .auto else ParseError.ModeKeywordWhereEmulatorExpected;
+    }
+    if (std.mem.eql(u8, value, "osc")) {
+        return if (allow_modes) .osc else ParseError.ModeKeywordWhereEmulatorExpected;
+    }
+
+    // Path form: must be absolute, basename must be a known source.
+    if (value[0] == '/') {
+        const base = std.fs.path.basename(value);
+        if (!isKnownSourceName(base)) return ParseError.InvalidValue;
+        const owned = try allocator.dupe(u8, value);
+        return .{ .emulator = .{ .name = canonicalSourceName(base), .binary = owned } };
+    }
+
+    // Bare name form.
+    if (!isKnownSourceName(value)) return ParseError.InvalidValue;
+    return .{ .emulator = .{ .name = canonicalSourceName(value), .binary = null } };
+}
+
+fn isKnownSourceName(s: []const u8) bool {
+    for (KNOWN_SOURCES) |n| if (std.mem.eql(u8, s, n)) return true;
+    return false;
+}
+
+/// Return the canonical `KNOWN_SOURCES` slice for `s`. Caller has already
+/// verified membership via `isKnownSourceName`. Letting both `parseSource`
+/// paths point at the same backing storage means `Source.Emulator.name`
+/// doesn't need to be allocator-owned.
+fn canonicalSourceName(s: []const u8) []const u8 {
+    for (KNOWN_SOURCES) |n| if (std.mem.eql(u8, s, n)) return n;
+    unreachable;
+}
 
 /// `args` is the full argv slice (args[0] is the program name and is skipped).
 pub fn parse(allocator: std.mem.Allocator, args: []const []const u8) ParseError!Options {
@@ -87,11 +180,36 @@ pub fn parse(allocator: std.mem.Allocator, args: []const []const u8) ParseError!
         } else if (matchValue(a, "--only")) |raw| {
             const v = try valueOrNext(raw, args, &i);
             opts.only = try parseOnly(allocator, v);
+        } else if (matchValue(a, "--source")) |raw| {
+            const v = try valueOrNext(raw, args, &i);
+            opts.source.deinit(allocator);
+            opts.source = try parseSource(allocator, v, true);
+        } else if (matchValue(a, "--osc-min-palette")) |raw| {
+            const v = try valueOrNext(raw, args, &i);
+            const n = std.fmt.parseInt(u8, v, 10) catch return ParseError.InvalidValue;
+            if (n < OSC_MIN_PALETTE_LOW or n > OSC_MIN_PALETTE_HIGH) return ParseError.InvalidValue;
+            opts.osc_min_palette = n;
         } else {
             return ParseError.UnknownFlag;
         }
     }
     return opts;
+}
+
+/// Resolve `$TERMCOLORS_TERMINAL` into `Options.env_fallback`. Called by main
+/// after `parse`. Only consulted when `opts.source == .auto`; explicit flag
+/// wins. Empty / unset → no-op.
+pub fn applyEnvFallback(
+    allocator: std.mem.Allocator,
+    env_map: *const std.process.Environ.Map,
+    opts: *Options,
+) ParseError!void {
+    if (opts.source != .auto) return;
+    const raw = env_map.get("TERMCOLORS_TERMINAL") orelse return;
+    if (raw.len == 0) return;
+    var src = try parseSource(allocator, raw, false);
+    errdefer src.deinit(allocator);
+    opts.env_fallback = src;
 }
 
 /// If `arg` is exactly `flag` returns null (value comes from next argv).
@@ -188,4 +306,88 @@ test "missing value" {
 
 test "invalid format" {
     try std.testing.expectError(ParseError.InvalidValue, parse(std.testing.allocator, &.{ "x", "--format", "yaml" }));
+}
+
+test "source defaults to auto" {
+    var opts = try parse(std.testing.allocator, &.{"x"});
+    defer opts.deinit(std.testing.allocator);
+    try std.testing.expectEqual(Source.auto, opts.source);
+}
+
+test "source accepts osc and auto keywords" {
+    {
+        var opts = try parse(std.testing.allocator, &.{ "x", "--source", "osc" });
+        defer opts.deinit(std.testing.allocator);
+        try std.testing.expectEqual(Source.osc, opts.source);
+    }
+    {
+        var opts = try parse(std.testing.allocator, &.{ "x", "--source", "auto" });
+        defer opts.deinit(std.testing.allocator);
+        try std.testing.expectEqual(Source.auto, opts.source);
+    }
+}
+
+test "source accepts known emulator name" {
+    var opts = try parse(std.testing.allocator, &.{ "x", "--source", "ghostty" });
+    defer opts.deinit(std.testing.allocator);
+    switch (opts.source) {
+        .emulator => |e| {
+            try std.testing.expectEqualStrings("ghostty", e.name);
+            try std.testing.expect(e.binary == null);
+        },
+        else => return error.TestUnexpectedResult,
+    }
+}
+
+test "source accepts absolute path whose basename matches a known source" {
+    var opts = try parse(std.testing.allocator, &.{ "x", "--source", "/opt/homebrew/bin/ghostty" });
+    defer opts.deinit(std.testing.allocator);
+    switch (opts.source) {
+        .emulator => |e| {
+            try std.testing.expectEqualStrings("ghostty", e.name);
+            try std.testing.expectEqualStrings("/opt/homebrew/bin/ghostty", e.binary.?);
+        },
+        else => return error.TestUnexpectedResult,
+    }
+}
+
+test "source rejects unknown name" {
+    try std.testing.expectError(
+        ParseError.InvalidValue,
+        parse(std.testing.allocator, &.{ "x", "--source", "kitty" }),
+    );
+}
+
+test "source rejects absolute path with unknown basename" {
+    try std.testing.expectError(
+        ParseError.InvalidValue,
+        parse(std.testing.allocator, &.{ "x", "--source", "/usr/bin/zsh" }),
+    );
+}
+
+test "parseSource rejects mode keywords when allow_modes=false" {
+    try std.testing.expectError(
+        ParseError.ModeKeywordWhereEmulatorExpected,
+        parseSource(std.testing.allocator, "auto", false),
+    );
+    try std.testing.expectError(
+        ParseError.ModeKeywordWhereEmulatorExpected,
+        parseSource(std.testing.allocator, "osc", false),
+    );
+}
+
+test "osc-min-palette accepts range and rejects out-of-bounds" {
+    {
+        var opts = try parse(std.testing.allocator, &.{ "x", "--osc-min-palette", "12" });
+        defer opts.deinit(std.testing.allocator);
+        try std.testing.expectEqual(@as(u8, 12), opts.osc_min_palette);
+    }
+    try std.testing.expectError(
+        ParseError.InvalidValue,
+        parse(std.testing.allocator, &.{ "x", "--osc-min-palette", "0" }),
+    );
+    try std.testing.expectError(
+        ParseError.InvalidValue,
+        parse(std.testing.allocator, &.{ "x", "--osc-min-palette", "17" }),
+    );
 }
