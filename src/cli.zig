@@ -66,7 +66,7 @@ pub const Options = struct {
     only: ?[]Slot = null,
     include_aliases: bool = false,
     include_256: bool = false,
-    timeout_ms: u32 = 200,
+    timeout_ms: u32 = 500,
     no_multiplexer_wrap: bool = false,
     /// True if `--help` was requested. main() should print usage and exit 0.
     help: bool = false,
@@ -265,7 +265,7 @@ test "defaults" {
     defer opts.deinit(std.testing.allocator);
     try std.testing.expectEqual(Format.json, opts.format);
     try std.testing.expectEqual(Notation.hex, opts.notation);
-    try std.testing.expectEqual(@as(u32, 200), opts.timeout_ms);
+    try std.testing.expectEqual(@as(u32, 500), opts.timeout_ms);
     try std.testing.expectEqual(false, opts.include_aliases);
 }
 

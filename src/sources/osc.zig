@@ -75,7 +75,16 @@ pub fn acquire(gpa: std.mem.Allocator, opts: cli.Options) AcquireError!Result {
         }
     }
 
-    const reply = query.readReplies(gpa, fd, opts.timeout_ms, requests.items, &pal) catch return AcquireError.OutOfMemory;
+    _ = query.readReplies(gpa, fd, opts.timeout_ms, requests.items, &pal) catch return AcquireError.OutOfMemory;
+
+    // Drain any in-flight bytes still on the wire. Some terminals (notably
+    // kitty) start emitting OSC replies later than our main read loop expects;
+    // if those bytes arrive after we restore canonical mode they leak into the
+    // user's shell prompt as garbage. We give late replies one more brief
+    // window — long enough to consume stragglers, short enough not to hang.
+    // Anything we can parse updates `pal`; the rest is silently consumed so it
+    // doesn't pollute the next prompt.
+    query.drainTail(gpa, fd, 150, &pal) catch {};
 
     var unsupported: std.ArrayListUnmanaged([]const u8) = .empty;
     errdefer unsupported.deinit(gpa);
@@ -85,7 +94,16 @@ pub fn acquire(gpa: std.mem.Allocator, opts: cli.Options) AcquireError!Result {
     if (pal.selection_background == null) unsupported.append(gpa, "selection_background") catch return AcquireError.OutOfMemory;
     if (pal.selection_foreground == null) unsupported.append(gpa, "selection_foreground") catch return AcquireError.OutOfMemory;
 
-    const all_missing = reply.unsupported_count == requests.items.len;
+    var missing_count: usize = 0;
+    for (pal.indexed) |c| if (c == null) {
+        missing_count += 1;
+    };
+    if (pal.foreground == null) missing_count += 1;
+    if (pal.background == null) missing_count += 1;
+    if (pal.cursor == null) missing_count += 1;
+    if (pal.selection_background == null) missing_count += 1;
+    if (pal.selection_foreground == null) missing_count += 1;
+    const all_missing = missing_count == requests.items.len;
     const notice: ?[]const u8 = if (all_missing)
         "no OSC color replies received; terminal may not support color queries (e.g. nvim :terminal)"
     else

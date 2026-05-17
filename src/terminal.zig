@@ -29,8 +29,15 @@ pub fn enterRaw(fd: posix.fd_t) !void {
     raw.lflag.ISIG = false;
     raw.iflag.IXON = false;
     raw.iflag.ICRNL = false;
+    // VMIN=0 + VTIME=N makes `read` block up to N×100 ms and return whatever
+    // bytes are available (possibly 0). We rely on this for deadline-bounded
+    // reads in `query.zig` because macOS `poll()` returns POLLNVAL on
+    // `/dev/tty` and can't be used to wait for data.
+    //
+    // VTIME=2 = 200 ms per read call. The outer read loop uses the overall
+    // `--timeout-ms` budget to decide when to stop.
     raw.cc[@intFromEnum(posix.V.MIN)] = 0;
-    raw.cc[@intFromEnum(posix.V.TIME)] = 0;
+    raw.cc[@intFromEnum(posix.V.TIME)] = 2;
 
     try posix.tcsetattr(fd, .FLUSH, raw);
     installSignalHandlers();
