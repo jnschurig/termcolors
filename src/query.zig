@@ -6,6 +6,28 @@ const parser = @import("parser.zig");
 const ESC: u8 = 0x1b;
 const BEL: u8 = 0x07;
 
+/// When the env var `TERMCOLORS_DEBUG_OSC` is set to any non-empty value at
+/// program start, the read loops emit per-iteration diagnostics to stderr.
+/// Tracks why the loop exits / how data is flowing, for terminal-specific
+/// bug hunts.
+var debug_osc_checked: bool = false;
+var debug_osc_enabled: bool = false;
+
+fn debugEnabled() bool {
+    if (!debug_osc_checked) {
+        if (std.c.getenv("TERMCOLORS_DEBUG_OSC")) |p| {
+            // Any non-empty value enables debug output.
+            debug_osc_enabled = p[0] != 0;
+        }
+        debug_osc_checked = true;
+    }
+    return debug_osc_enabled;
+}
+
+fn dbg(comptime fmt: []const u8, args: anytype) void {
+    if (debugEnabled()) std.debug.print("[osc-debug] " ++ fmt ++ "\n", args);
+}
+
 pub const Kind = enum {
     foreground,
     background,
@@ -40,13 +62,16 @@ pub fn writeQueries(writer: *std.Io.Writer, requests: []const Request) !void {
     }
 }
 
-/// Reads bytes from `fd` with a poll(2)-bounded wait. Each complete OSC reply
-/// is fed to `parser.parseReply` and the result merged into `pal`. Stops when
-/// every entry in `expected` has been seen or `timeout_ms` elapses without
-/// further data.
+/// Reads bytes from `fd` directly, relying on the terminal's VMIN=0/VTIME=2
+/// setting (configured in `terminal.enterRaw`) to bound each `read()` call.
+/// Each `read` blocks up to ~200 ms and returns whatever bytes are available
+/// (possibly zero). Loops until every entry in `requests` has been matched by
+/// a reply, or `timeout_ms` elapses.
 ///
-/// `expected` is an opaque token set keyed by `kindToken(kind, index)`. Tokens
-/// are removed as replies arrive; tokens that remain at exit are unsupported.
+/// We deliberately do NOT use `poll(2)`: on macOS, `poll` returns POLLNVAL for
+/// `/dev/tty` even though the fd is fully functional for read/write. The
+/// VMIN/VTIME-driven blocking-read strategy side-steps that platform quirk
+/// and works equivalently on Linux.
 pub fn readReplies(
     allocator: std.mem.Allocator,
     fd: posix.fd_t,
@@ -61,26 +86,92 @@ pub fn readReplies(
     var buf: std.ArrayListUnmanaged(u8) = .empty;
     defer buf.deinit(allocator);
 
-    var pfd = [_]posix.pollfd{.{ .fd = fd, .events = posix.POLL.IN, .revents = 0 }};
     var scratch: [4096]u8 = undefined;
 
+    dbg("readReplies start: fd={d} timeout_ms={d} pending={d}", .{ fd, timeout_ms, pending.count() });
     const deadline_ms = nowMs() + timeout_ms;
+    var iter: u32 = 0;
     while (pending.count() > 0) {
-        const now = nowMs();
-        if (now >= deadline_ms) break;
-        const remaining: i32 = @intCast(deadline_ms - now);
-        const ready = try posix.poll(&pfd, remaining);
-        if (ready == 0) break;
+        iter += 1;
+        if (nowMs() >= deadline_ms) {
+            dbg("deadline elapsed at iter {d}; pending={d}", .{ iter, pending.count() });
+            break;
+        }
         const n = posix.read(fd, &scratch) catch |err| switch (err) {
-            error.WouldBlock => continue,
+            error.WouldBlock => {
+                dbg("iter {d}: read=WouldBlock; sleeping 2ms", .{iter});
+                sleepMs(2);
+                continue;
+            },
             else => return err,
         };
-        if (n == 0) break;
+        if (n == 0) {
+            // VMIN=0/VTIME=2: read waited ~200 ms with no bytes. Keep
+            // looping until the overall deadline expires.
+            dbg("iter {d}: read=0 (VTIME timeout, no data)", .{iter});
+            continue;
+        }
+        dbg("iter {d}: read={d} bytes", .{ iter, n });
+        try buf.appendSlice(allocator, scratch[0..n]);
+        const before_pending = pending.count();
+        try drainBuffer(&buf, &pending, pal);
+        if (pending.count() != before_pending) {
+            dbg("iter {d}: pending {d} -> {d}", .{ iter, before_pending, pending.count() });
+        }
+    }
+
+    dbg("readReplies done: pending={d}", .{pending.count()});
+    return .{ .unsupported_count = pending.count() };
+}
+
+/// Read and discard any in-flight bytes still on the wire after the main
+/// read loop has finished. Any well-formed OSC replies recovered are applied
+/// to `pal`; everything else is silently consumed.
+///
+/// Why this exists: some terminals (notably kitty) buffer their OSC replies
+/// and emit them later than callers expect. If those bytes arrive after we
+/// restore the TTY to canonical mode, they leak into the user's shell prompt.
+/// Calling `drainTail` before restoration eats them.
+///
+/// `total_ms` is an overall budget; the function returns when either the
+/// budget expires OR the inter-byte quiet window (about a third of `total_ms`)
+/// elapses with no new data.
+pub fn drainTail(
+    allocator: std.mem.Allocator,
+    fd: posix.fd_t,
+    total_ms: u32,
+    pal: *palette.Palette,
+) !void {
+    var buf: std.ArrayListUnmanaged(u8) = .empty;
+    defer buf.deinit(allocator);
+
+    var scratch: [4096]u8 = undefined;
+    var pending: std.AutoHashMapUnmanaged(u32, void) = .empty;
+    defer pending.deinit(allocator);
+
+    const deadline_ms = nowMs() + total_ms;
+    var consecutive_empty: u8 = 0;
+    while (true) {
+        if (nowMs() >= deadline_ms) return;
+        const n = posix.read(fd, &scratch) catch |err| switch (err) {
+            error.WouldBlock => {
+                sleepMs(2);
+                continue;
+            },
+            else => return,
+        };
+        if (n == 0) {
+            // Each read is a VTIME-bounded ~200 ms wait. Two empties in a row
+            // means the terminal has stopped sending for at least 400 ms,
+            // which is plenty of "quiet" — exit early.
+            consecutive_empty += 1;
+            if (consecutive_empty >= 2) return;
+            continue;
+        }
+        consecutive_empty = 0;
         try buf.appendSlice(allocator, scratch[0..n]);
         try drainBuffer(&buf, &pending, pal);
     }
-
-    return .{ .unsupported_count = pending.count() };
 }
 
 fn drainBuffer(
@@ -162,6 +253,11 @@ fn replyToken(kind: parser.ReplyKind) u32 {
         .selection_fg => 0x10004,
         .palette_index => |n| @as(u32, n),
     };
+}
+
+fn sleepMs(ms: u32) void {
+    var req: std.c.timespec = .{ .sec = @intCast(ms / 1000), .nsec = @intCast((ms % 1000) * 1_000_000) };
+    _ = std.c.nanosleep(&req, null);
 }
 
 fn nowMs() u64 {

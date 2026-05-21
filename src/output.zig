@@ -31,6 +31,12 @@ pub const Context = struct {
     /// like "no OSC replies at all" that aren't fatal but explain null output
     /// (e.g. running inside nvim :terminal, or a terminal that ignores OSC 4/10/11).
     notice: ?[]const u8 = null,
+    /// Identifier of the source that produced the palette. Always present in
+    /// output (the field defaults to "osc" so older call sites compile unchanged).
+    /// Future sources extend this open string set; consumers should not strict-enum-check.
+    source: []const u8 = "osc",
+    /// Optional theme name reported by sources that expose one (e.g. ghostty).
+    theme: ?[]const u8 = null,
 };
 
 const ALIAS_NAMES = [_][]const u8{
@@ -41,8 +47,8 @@ const ALIAS_NAMES = [_][]const u8{
 };
 
 const SPECIAL_NAMES = [_][]const u8{
-    "foreground",           "background",           "cursor",
-    "selection_background", "selection_foreground",
+    "foreground",  "background",           "cursor",
+    "cursor_text", "selection_background", "selection_foreground",
 };
 
 pub fn write(
@@ -97,6 +103,7 @@ fn writeJson(writer: anytype, ctx: Context, opts: cli.Options) !void {
         .{ .name = "foreground", .val = ctx.palette.foreground, .slot = .fg },
         .{ .name = "background", .val = ctx.palette.background, .slot = .bg },
         .{ .name = "cursor", .val = ctx.palette.cursor, .slot = .cursor },
+        .{ .name = "cursor_text", .val = ctx.palette.cursor_text, .slot = .cursor_text },
         .{ .name = "selection_background", .val = ctx.palette.selection_background, .slot = .selection_bg },
         .{ .name = "selection_foreground", .val = ctx.palette.selection_foreground, .slot = .selection_fg },
     };
@@ -130,6 +137,12 @@ fn writeJson(writer: anytype, ctx: Context, opts: cli.Options) !void {
 
     try writer.writeAll("  \"meta\": {\n");
     try writer.print("    \"schema_version\": {d},\n", .{SCHEMA_VERSION});
+    try writer.print("    \"source\": \"{s}\",\n", .{ctx.source});
+    if (ctx.theme) |t| {
+        try writer.print("    \"theme\": \"{s}\",\n", .{t});
+    } else {
+        try writer.writeAll("    \"theme\": null,\n");
+    }
     try writer.print("    \"notation\": \"{s}\",\n", .{@tagName(opts.notation)});
     try writer.print("    \"queried_at\": \"{s}\",\n", .{ctx.queried_at});
     try writer.writeAll("    \"unsupported\": [");
@@ -163,6 +176,7 @@ fn writeEnv(writer: anytype, ctx: Context, opts: cli.Options) !void {
     try writeEnvSpecial(writer, "FG", ctx.palette.foreground, .fg, opts);
     try writeEnvSpecial(writer, "BG", ctx.palette.background, .bg, opts);
     try writeEnvSpecial(writer, "CURSOR", ctx.palette.cursor, .cursor, opts);
+    try writeEnvSpecial(writer, "CURSOR_TEXT", ctx.palette.cursor_text, .cursor_text, opts);
     try writeEnvSpecial(writer, "SELECTION_BG", ctx.palette.selection_background, .selection_bg, opts);
     try writeEnvSpecial(writer, "SELECTION_FG", ctx.palette.selection_foreground, .selection_fg, opts);
 
@@ -176,6 +190,9 @@ fn writeEnv(writer: anytype, ctx: Context, opts: cli.Options) !void {
             try writer.writeByte('\n');
         }
     }
+
+    try writer.print("META_SOURCE={s}\n", .{ctx.source});
+    if (ctx.theme) |t| try writer.print("META_THEME={s}\n", .{t});
 }
 
 fn writeEnvSpecial(
@@ -206,6 +223,7 @@ fn writeFlat(writer: anytype, ctx: Context, opts: cli.Options) !void {
         .{ .val = ctx.palette.foreground, .slot = .fg },
         .{ .val = ctx.palette.background, .slot = .bg },
         .{ .val = ctx.palette.cursor, .slot = .cursor },
+        .{ .val = ctx.palette.cursor_text, .slot = .cursor_text },
         .{ .val = ctx.palette.selection_background, .slot = .selection_bg },
         .{ .val = ctx.palette.selection_foreground, .slot = .selection_fg },
     };
@@ -215,6 +233,8 @@ fn writeFlat(writer: anytype, ctx: Context, opts: cli.Options) !void {
         }
         try writer.writeByte('\n');
     }
+    try writer.print("meta.source={s}\n", .{ctx.source});
+    if (ctx.theme) |t| try writer.print("meta.theme={s}\n", .{t});
     _ = SPECIAL_NAMES;
 }
 
@@ -311,8 +331,70 @@ test "flat output preserves position with blank lines" {
     var lines = std.mem.splitScalar(u8, aw.written(), '\n');
     var count: usize = 0;
     while (lines.next()) |_| count += 1;
-    // 16 indexed + 5 special + trailing empty after final newline = 22
-    try std.testing.expectEqual(@as(usize, 22), count);
+    // 16 indexed + 6 special + 1 meta.source (theme omitted when null) + trailing empty = 24
+    try std.testing.expectEqual(@as(usize, 24), count);
+}
+
+test "json output emits meta.source and null meta.theme by default" {
+    const allocator = std.testing.allocator;
+    const pal = try makePalette(allocator);
+    defer allocator.free(pal.indexed);
+    const ctx = Context{ .palette = pal, .queried_at = "t" };
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    try write(&aw.writer, ctx, .{});
+    const out = aw.written();
+    try std.testing.expect(std.mem.indexOf(u8, out, "\"source\": \"osc\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "\"theme\": null") != null);
+}
+
+test "json output emits non-null theme when set" {
+    const allocator = std.testing.allocator;
+    const pal = try makePalette(allocator);
+    defer allocator.free(pal.indexed);
+    const ctx = Context{
+        .palette = pal,
+        .queried_at = "t",
+        .source = "ghostty",
+        .theme = "GruvboxDarkHard",
+    };
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    try write(&aw.writer, ctx, .{});
+    const out = aw.written();
+    try std.testing.expect(std.mem.indexOf(u8, out, "\"source\": \"ghostty\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "\"theme\": \"GruvboxDarkHard\"") != null);
+}
+
+test "env output emits META_SOURCE and skips META_THEME when null" {
+    const allocator = std.testing.allocator;
+    const pal = try makePalette(allocator);
+    defer allocator.free(pal.indexed);
+    const ctx = Context{ .palette = pal, .queried_at = "t" };
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    try write(&aw.writer, ctx, .{ .format = .env });
+    const out = aw.written();
+    try std.testing.expect(std.mem.indexOf(u8, out, "META_SOURCE=osc\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "META_THEME=") == null);
+}
+
+test "env output emits META_THEME when set" {
+    const allocator = std.testing.allocator;
+    const pal = try makePalette(allocator);
+    defer allocator.free(pal.indexed);
+    const ctx = Context{
+        .palette = pal,
+        .queried_at = "t",
+        .source = "ghostty",
+        .theme = "Dracula",
+    };
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    try write(&aw.writer, ctx, .{ .format = .env });
+    const out = aw.written();
+    try std.testing.expect(std.mem.indexOf(u8, out, "META_SOURCE=ghostty\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "META_THEME=Dracula\n") != null);
 }
 
 test "rgb notation" {
