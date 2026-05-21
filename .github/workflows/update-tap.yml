@@ -1,0 +1,118 @@
+name: Update Homebrew tap
+
+# Fires after a GitHub Release is published (either by the release job on a
+# tag push, or by a UI-driven release). Downloads the freshly-attached
+# tarballs, computes their sha256s, rewrites the formula in
+# jnschurig/homebrew-termcolors, and pushes.
+#
+# Requires repo secret HOMEBREW_TAP_TOKEN: a fine-grained PAT with
+# Contents:Read+Write on jnschurig/homebrew-termcolors.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to sync (e.g. v0.1.2)'
+        required: true
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag and version
+        id: meta
+        run: |
+          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          version="${tag#v}"
+          echo "tag=$tag"         >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Download release assets and compute sha256
+        id: hashes
+        run: |
+          set -euo pipefail
+          tag="${{ steps.meta.outputs.tag }}"
+          base="https://github.com/${{ github.repository }}/releases/download/${tag}"
+          for asset in \
+            termcolors-aarch64-macos.tar.gz \
+            termcolors-x86_64-macos.tar.gz \
+            termcolors-aarch64-linux-musl.tar.gz \
+            termcolors-x86_64-linux-musl.tar.gz; do
+            curl -sSL -o "$asset" "$base/$asset"
+          done
+          sha_arm_mac=$(sha256sum termcolors-aarch64-macos.tar.gz       | awk '{print $1}')
+          sha_x86_mac=$(sha256sum termcolors-x86_64-macos.tar.gz        | awk '{print $1}')
+          sha_arm_lin=$(sha256sum termcolors-aarch64-linux-musl.tar.gz  | awk '{print $1}')
+          sha_x86_lin=$(sha256sum termcolors-x86_64-linux-musl.tar.gz   | awk '{print $1}')
+          {
+            echo "sha_arm_mac=$sha_arm_mac"
+            echo "sha_x86_mac=$sha_x86_mac"
+            echo "sha_arm_lin=$sha_arm_lin"
+            echo "sha_x86_lin=$sha_x86_lin"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check out tap repo
+        uses: actions/checkout@v4
+        with:
+          repository: jnschurig/homebrew-termcolors
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Rewrite formula
+        run: |
+          set -euo pipefail
+          tag="${{ steps.meta.outputs.tag }}"
+          base="https://github.com/${{ github.repository }}/releases/download/${tag}"
+          cat > tap/Formula/termcolors.rb <<RUBY
+          class Termcolors < Formula
+            desc "Query the running terminal emulator for its current colors via OSC escapes"
+            homepage "https://github.com/${{ github.repository }}"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "${base}/termcolors-aarch64-macos.tar.gz"
+                sha256 "${{ steps.hashes.outputs.sha_arm_mac }}"
+              end
+              on_intel do
+                url "${base}/termcolors-x86_64-macos.tar.gz"
+                sha256 "${{ steps.hashes.outputs.sha_x86_mac }}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "${base}/termcolors-aarch64-linux-musl.tar.gz"
+                sha256 "${{ steps.hashes.outputs.sha_arm_lin }}"
+              end
+              on_intel do
+                url "${base}/termcolors-x86_64-linux-musl.tar.gz"
+                sha256 "${{ steps.hashes.outputs.sha_x86_lin }}"
+              end
+            end
+
+            def install
+              bin.install "termcolors"
+            end
+
+            test do
+              assert_match "usage: termcolors", shell_output("#{bin}/termcolors --help 2>&1")
+            end
+          end
+          RUBY
+
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          cd tap
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "Formula already up to date."
+            exit 0
+          fi
+          git add Formula/termcolors.rb
+          git commit -m "termcolors ${{ steps.meta.outputs.version }}"
+          git push
