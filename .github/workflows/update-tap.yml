@@ -1,16 +1,18 @@
-name: Update Homebrew tap
+name: Update Homebrew tap (manual)
 
-# Fires after a GitHub Release is published (either by the release job on a
-# tag push, or by a UI-driven release). Downloads the freshly-attached
-# tarballs, computes their sha256s, rewrites the formula in
-# jnschurig/homebrew-termcolors, and pushes.
+# Manual re-sync of the Homebrew tap formula to a specific tagged release.
+# The automatic per-release update lives in ci.yml's release job (running
+# *after* asset upload), to avoid the race where this workflow would have
+# read asset URLs before they exist.
+#
+# Use this only to repair the tap (e.g. assets were re-uploaded after a
+# release, or the in-line CI update was skipped). Provide a tag that already
+# has all four binary assets attached.
 #
 # Requires repo secret HOMEBREW_TAP_DEPLOY_KEY: an SSH private key registered
 # as a deploy key on jnschurig/homebrew-termcolors with write access enabled.
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       tag:
@@ -24,7 +26,7 @@ jobs:
       - name: Resolve tag and version
         id: meta
         run: |
-          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          tag="${{ inputs.tag }}"
           version="${tag#v}"
           echo "tag=$tag"         >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -40,17 +42,15 @@ jobs:
             termcolors-x86_64-macos.tar.gz \
             termcolors-aarch64-linux-musl.tar.gz \
             termcolors-x86_64-linux-musl.tar.gz; do
-            curl -sSL -o "$asset" "$base/$asset"
+            # --fail makes curl exit non-zero on 404 so we don't silently
+            # hash an HTML "not found" page if an asset is missing.
+            curl --fail -sSL -o "$asset" "$base/$asset"
           done
-          sha_arm_mac=$(sha256sum termcolors-aarch64-macos.tar.gz       | awk '{print $1}')
-          sha_x86_mac=$(sha256sum termcolors-x86_64-macos.tar.gz        | awk '{print $1}')
-          sha_arm_lin=$(sha256sum termcolors-aarch64-linux-musl.tar.gz  | awk '{print $1}')
-          sha_x86_lin=$(sha256sum termcolors-x86_64-linux-musl.tar.gz   | awk '{print $1}')
           {
-            echo "sha_arm_mac=$sha_arm_mac"
-            echo "sha_x86_mac=$sha_x86_mac"
-            echo "sha_arm_lin=$sha_arm_lin"
-            echo "sha_x86_lin=$sha_x86_lin"
+            echo "sha_arm_mac=$(sha256sum termcolors-aarch64-macos.tar.gz       | awk '{print $1}')"
+            echo "sha_x86_mac=$(sha256sum termcolors-x86_64-macos.tar.gz        | awk '{print $1}')"
+            echo "sha_arm_lin=$(sha256sum termcolors-aarch64-linux-musl.tar.gz  | awk '{print $1}')"
+            echo "sha_x86_lin=$(sha256sum termcolors-x86_64-linux-musl.tar.gz   | awk '{print $1}')"
           } >> "$GITHUB_OUTPUT"
 
       - name: Check out tap repo
