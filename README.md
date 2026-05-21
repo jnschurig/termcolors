@@ -115,11 +115,18 @@ termcolors_source = ghostty
 ## Development
 
 ```sh
-zig build        # debug build
-zig build test   # run unit tests
-zig fmt src/     # format
+zig build                   # debug build
+zig build test              # run unit tests
+zig build test-integration  # PTY-based end-to-end tests (spawns the real binary)
+zig fmt src/                # format
 ```
 
 `pre-commit` runs `zig fmt --check`; `zig build` and `zig build test` run on pre-push.
+
+Integration tests live in [`tests/integration.zig`](./tests/integration.zig). They `forkpty` a child process, exec the built `termcolors` binary, and play the role of a terminal emulator — reading the OSC queries the binary writes to `/dev/tty` and responding with a fixture palette. This exercises the raw-mode TTY lifecycle, batched query write, deadline-bounded read loop, and reply parser end-to-end without needing a real terminal emulator on the host. Real-emulator quirks (Kitty/iTerm2/Ghostty divergences) are out of scope for these tests and stay in the manual pre-release smoke check.
+
+### CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs `zig fmt --check`, `zig build`, `zig build test`, and `zig build test-integration` on `ubuntu-latest` and `macos-latest` for every push and PR. Pushing a `v*` tag additionally runs the `release` job, which cross-compiles all four target binaries and publishes them as a GitHub Release. The release job can also be invoked manually from the Actions tab (workflow dispatch) for a dry-run that uploads the tarballs as a workflow artifact without publishing a Release.
 
 See [`terminal-colors-design.md`](./terminal-colors-design.md) for the full design — color acquisition protocol, output schema, module layout, and the contract for callers.
