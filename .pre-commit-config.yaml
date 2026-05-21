@@ -18,6 +18,14 @@ repos:
         files: '\.(zig|zon)$'
         pass_filenames: true
 
+      - id: rebase-onto-origin-main
+        name: rebase onto origin/main
+        entry: scripts/pre-push-rebase.sh
+        language: system
+        always_run: true
+        pass_filenames: false
+        stages: [pre-push]
+
       - id: zig-build
         name: zig build
         entry: zig build
