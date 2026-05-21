@@ -5,7 +5,7 @@ name: Update Homebrew tap
 # tarballs, computes their sha256s, rewrites the formula in
 # jnschurig/homebrew-termcolors, and pushes.
 #
-# Requires repo secret HOMEBREW_TAP_TOKEN: a fine-grained PAT with
+# Requires repo secret HOMEBREW_TAP_DEPLOY_KEY: a fine-grained PAT with
 # Contents:Read+Write on jnschurig/homebrew-termcolors.
 
 on:
@@ -57,7 +57,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: jnschurig/homebrew-termcolors
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          token: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
           path: tap
 
       - name: Rewrite formula
