@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+      - run: zig fmt --check src/ tests/
+      - run: zig build
+      - run: zig build test
+      - run: zig build test-integration
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+      - run: zig build release
+      - name: Package binaries
+        run: |
+          cd zig-out/dist
+          for triple in */; do
+            triple="${triple%/}"
+            tar -czf "../../termcolors-${triple}.tar.gz" -C "$triple" .
+          done
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: termcolors-*.tar.gz
