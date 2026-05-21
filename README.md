@@ -10,6 +10,16 @@ Colors are queried at runtime via OSC escape sequences (`ESC ] 4 ; n ; ? BEL`, `
 
 ## Install
 
+### Homebrew (macOS, Linux)
+
+```sh
+brew install jnschurig/termcolors/termcolors
+```
+
+The tap [`jnschurig/homebrew-termcolors`](https://github.com/jnschurig/homebrew-termcolors) ships prebuilt binaries for Apple Silicon + Intel macOS and aarch64 + x86_64 Linux (musl, statically linked). The formula is updated automatically on every release.
+
+### From source
+
 Zig toolchain version is pinned via `mise.toml`.
 
 ```sh
