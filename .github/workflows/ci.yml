@@ -60,3 +60,82 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: termcolors-*.tar.gz
+
+      # Update the Homebrew tap in the same job, *after* the assets are
+      # uploaded. Doing this here (rather than in a separate workflow triggered
+      # by `release: published`) avoids a race where the tap-update could read
+      # the asset URLs before the upload finishes.
+      - name: Compute sha256 for tap formula
+        if: startsWith(github.ref, 'refs/tags/v')
+        id: hashes
+        run: |
+          set -euo pipefail
+          {
+            echo "sha_arm_mac=$(sha256sum termcolors-aarch64-macos.tar.gz       | awk '{print $1}')"
+            echo "sha_x86_mac=$(sha256sum termcolors-x86_64-macos.tar.gz        | awk '{print $1}')"
+            echo "sha_arm_lin=$(sha256sum termcolors-aarch64-linux-musl.tar.gz  | awk '{print $1}')"
+            echo "sha_x86_lin=$(sha256sum termcolors-x86_64-linux-musl.tar.gz   | awk '{print $1}')"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check out tap repo
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/checkout@v5
+        with:
+          repository: jnschurig/homebrew-termcolors
+          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          path: tap
+
+      - name: Rewrite formula and push
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          version="${tag#v}"
+          base="https://github.com/${{ github.repository }}/releases/download/${tag}"
+          cat > tap/Formula/termcolors.rb <<RUBY
+          class Termcolors < Formula
+            desc "Query the running terminal emulator for its current colors via OSC escapes"
+            homepage "https://github.com/${{ github.repository }}"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "${base}/termcolors-aarch64-macos.tar.gz"
+                sha256 "${{ steps.hashes.outputs.sha_arm_mac }}"
+              end
+              on_intel do
+                url "${base}/termcolors-x86_64-macos.tar.gz"
+                sha256 "${{ steps.hashes.outputs.sha_x86_mac }}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "${base}/termcolors-aarch64-linux-musl.tar.gz"
+                sha256 "${{ steps.hashes.outputs.sha_arm_lin }}"
+              end
+              on_intel do
+                url "${base}/termcolors-x86_64-linux-musl.tar.gz"
+                sha256 "${{ steps.hashes.outputs.sha_x86_lin }}"
+              end
+            end
+
+            def install
+              bin.install "termcolors"
+            end
+
+            test do
+              assert_match "usage: termcolors", shell_output("#{bin}/termcolors --help 2>&1")
+            end
+          end
+          RUBY
+          cd tap
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "Formula already up to date."
+            exit 0
+          fi
+          git add Formula/termcolors.rb
+          git commit -m "termcolors ${version}"
+          git push
