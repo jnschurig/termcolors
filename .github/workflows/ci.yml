@@ -5,6 +5,12 @@ on:
     branches: [main]
     tags: ['v*']
   pull_request:
+  workflow_dispatch:
+    inputs:
+      run_release:
+        description: 'Also run the release job (dry-run, no GitHub Release published)'
+        type: boolean
+        default: true
 
 jobs:
   test:
@@ -24,7 +30,7 @@ jobs:
       - run: zig build test-integration
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.run_release)
     needs: test
     runs-on: ubuntu-latest
     permissions:
@@ -42,6 +48,15 @@ jobs:
             triple="${triple%/}"
             tar -czf "../../termcolors-${triple}.tar.gz" -C "$triple" .
           done
-      - uses: softprops/action-gh-release@v2
+      - name: Upload artifacts (dry-run)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-binaries-dryrun
+          path: termcolors-*.tar.gz
+          retention-days: 7
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
         with:
           files: termcolors-*.tar.gz
