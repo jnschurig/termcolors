@@ -103,8 +103,10 @@ pub fn build(b: *std.Build) void {
 
 /// Version for builds that don't pass `-Dversion`. An exact `vX.Y.Z` tag on a
 /// clean tree yields `X.Y.Z`; anything else yields a semver pre-release such
-/// as `0.2.0-dev.3+c40c625` (3 commits past v0.2.0), with `.dirty` appended
-/// for uncommitted changes. Outside a git checkout: `0.0.0-dev`.
+/// as `0.2.0-main.3+c40c625` (3 commits past v0.2.0 on branch `main`), with
+/// `.dirty` appended for uncommitted changes. The branch name is sanitized to
+/// semver identifier characters (`feat/foo` -> `feat-foo`); a detached HEAD
+/// uses `dev`. Outside a git checkout: `0.0.0-dev`.
 fn gitVersion(b: *std.Build) []const u8 {
     const unknown = "0.0.0-dev";
     // The result depends on HEAD, tags and working-tree dirtiness, none of
@@ -112,9 +114,10 @@ fn gitVersion(b: *std.Build) []const u8 {
     // the cached configuration and bakes in a stale version.
     b.graph.poisonCache();
 
+    const root = b.root.toString(b.allocator) catch @panic("OOM");
     var code: u8 = undefined;
     const raw = b.runAllowFail(&.{
-        "git",      "-C",     b.root.toString(b.allocator) catch @panic("OOM"),
+        "git",      "-C",     root,
         "describe", "--tags", "--match",
         "v[0-9]*",  "--long", "--dirty",
     }, &code, .ignore) catch return unknown;
@@ -131,5 +134,24 @@ fn gitVersion(b: *std.Build) []const u8 {
     const sha = desc[sha_sep + 2 ..]; // skip "-g"
 
     if (!dirty and std.mem.eql(u8, count, "0")) return tag;
-    return b.fmt("{s}-dev.{s}+{s}{s}", .{ tag, count, sha, if (dirty) ".dirty" else "" });
+    return b.fmt("{s}-{s}.{s}+{s}{s}", .{ tag, gitBranch(b, root), count, sha, if (dirty) ".dirty" else "" });
+}
+
+/// Current branch as a semver pre-release identifier: anything outside
+/// `[0-9A-Za-z-]` becomes `-`. `dev` when HEAD is detached.
+fn gitBranch(b: *std.Build, root: []const u8) []const u8 {
+    var code: u8 = undefined;
+    const raw = b.runAllowFail(
+        &.{ "git", "-C", root, "branch", "--show-current" },
+        &code,
+        .ignore,
+    ) catch return "dev";
+    const name = std.mem.trim(u8, raw, " \n\r");
+    if (name.len == 0) return "dev";
+
+    const out = b.allocator.dupe(u8, name) catch @panic("OOM");
+    for (out) |*c| {
+        if (!std.ascii.isAlphanumeric(c.*) and c.* != '-') c.* = '-';
+    }
+    return out;
 }

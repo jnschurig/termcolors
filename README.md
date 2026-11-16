@@ -44,7 +44,7 @@ termcolors [--format=json|env|flat] [--color=hex|rgb|hsl|oklch]
            [--osc-min-palette=N] [--version]
 ```
 
-`--version` prints `termcolors X.Y.Z` for a release build, or a dev version such as `0.2.0-dev.3+c40c625` (3 commits past `v0.2.0`, `.dirty` if built with uncommitted changes).
+`--version` prints `termcolors X.Y.Z` for a release build, or a dev version such as `0.2.0-main.3+c40c625` (3 commits past `v0.2.0` on branch `main`, `.dirty` if built with uncommitted changes).
 
 Default output is JSON with hex colors. Examples:
 
