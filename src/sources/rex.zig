@@ -60,6 +60,10 @@ fn setDetail(comptime fmt: []const u8, args: anytype) void {
         last_detail_len = 0;
         return;
     };
+    // Echoed to the user's terminal, and built from prefs values and paths.
+    for (written) |*c| {
+        if (std.ascii.isControl(c.*)) c.* = '?';
+    }
     last_detail_len = written.len;
 }
 
@@ -172,7 +176,12 @@ fn defaultsRead(
     key: []const u8,
 ) error{OutOfMemory}!?[]u8 {
     const argv = [_][]const u8{ "/usr/bin/defaults", "read", domain, key };
-    const run_result = std.process.run(gpa, io, .{ .argv = &argv }) catch |err| switch (err) {
+    const run_result = std.process.run(gpa, io, .{
+        .argv = &argv,
+        .stdout_limit = .limited(64 * 1024),
+        .stderr_limit = .limited(64 * 1024),
+        .timeout = .{ .duration = .{ .raw = .fromSeconds(5), .clock = .awake } },
+    }) catch |err| switch (err) {
         error.OutOfMemory => return error.OutOfMemory,
         else => return null,
     };

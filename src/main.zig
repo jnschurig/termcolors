@@ -6,6 +6,16 @@ const output = @import("output.zig");
 const osc_source = @import("sources/osc.zig");
 const ghostty_source = @import("sources/ghostty.zig");
 const rex_source = @import("sources/rex.zig");
+const terminal = @import("terminal.zig");
+
+/// Restore the TTY before the default panic handler aborts, so a safety
+/// check tripping mid-query can't leave the user's terminal in raw mode.
+pub const panic = std.debug.FullPanic(panicRestoringTty);
+
+fn panicRestoringTty(msg: []const u8, first_trace_addr: ?usize) noreturn {
+    terminal.restore();
+    std.debug.defaultPanic(msg, first_trace_addr);
+}
 
 pub fn main(init: std.process.Init) !u8 {
     const gpa = init.gpa;

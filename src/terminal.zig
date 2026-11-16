@@ -10,7 +10,7 @@ pub const Error = error{
 };
 
 pub fn open() !posix.fd_t {
-    const fd = posix.openat(posix.AT.FDCWD, "/dev/tty", .{ .ACCMODE = .RDWR }, 0) catch return Error.NoTty;
+    const fd = posix.openat(posix.AT.FDCWD, "/dev/tty", .{ .ACCMODE = .RDWR, .CLOEXEC = true }, 0) catch return Error.NoTty;
     tty_fd = fd;
     return fd;
 }
@@ -39,8 +39,10 @@ pub fn enterRaw(fd: posix.fd_t) !void {
     raw.cc[@backingInt(posix.V.MIN)] = 0;
     raw.cc[@backingInt(posix.V.TIME)] = 2;
 
-    try posix.tcsetattr(fd, .FLUSH, raw);
+    // Handlers go in before raw mode so there is no window where a signal
+    // can kill us with the TTY left raw.
     installSignalHandlers();
+    try posix.tcsetattr(fd, .FLUSH, raw);
 }
 
 pub fn restore() void {
@@ -72,4 +74,5 @@ fn installSignalHandlers() void {
     posix.sigaction(posix.SIG.INT, &act, null);
     posix.sigaction(posix.SIG.TERM, &act, null);
     posix.sigaction(posix.SIG.HUP, &act, null);
+    posix.sigaction(posix.SIG.QUIT, &act, null);
 }

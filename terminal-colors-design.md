@@ -175,7 +175,7 @@ ANSI_SELECTION_BG=#373b41
 ANSI_SELECTION_FG=#c5c8c6
 ```
 
-An empty value indicates `null` (no terminal response). With `--include-aliases`, additional `ANSI_BLACK=#1d1f21`, `ANSI_RED=#cc6666`, etc. are emitted alongside the indexed keys.
+An empty value indicates `null` (no terminal response). Values containing shell-special characters — `rgb(...)`/`hsl(...)`/`oklch(...)` colors and some `META_THEME` names — are single-quoted so the output is safe to `eval`; hex colors are emitted bare. With `--include-aliases`, additional `ANSI_BLACK=#1d1f21`, `ANSI_RED=#cc6666`, etc. are emitted alongside the indexed keys.
 
 ### `--format flat`
 

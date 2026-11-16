@@ -68,7 +68,9 @@ pub fn build(b: *std.Build) void {
         const rel_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = resolved,
-            .optimize = .fast,
+            // Safe, not fast: the tool parses terminal-supplied bytes and
+            // its runtime is I/O-bound, so keep bounds/overflow checks on.
+            .optimize = .safe,
             .link_libc = true,
         });
         const rel = b.addExecutable(.{

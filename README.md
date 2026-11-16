@@ -48,7 +48,7 @@ Default output is JSON with hex colors. Examples:
 
 ```sh
 termcolors                            # JSON, hex
-termcolors --format=env --color=rgb   # shell-eval'able: COLOR_0=...
+termcolors --format=env --color=rgb   # shell-eval'able: ANSI_0='rgb(29 31 33)'
 termcolors --color=oklch              # perceptual color space
 termcolors --include-256              # all 256 palette slots
 ```

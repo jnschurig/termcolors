@@ -139,7 +139,10 @@ fn writeJson(writer: anytype, ctx: Context, opts: cli.Options) !void {
     try writer.print("    \"schema_version\": {d},\n", .{SCHEMA_VERSION});
     try writer.print("    \"source\": \"{s}\",\n", .{ctx.source});
     if (ctx.theme) |t| {
-        try writer.print("    \"theme\": \"{s}\",\n", .{t});
+        // Theme names come from emulator config / theme files: escape them.
+        try writer.writeAll("    \"theme\": ");
+        try std.json.Stringify.encodeJsonString(t, .{}, writer);
+        try writer.writeAll(",\n");
     } else {
         try writer.writeAll("    \"theme\": null,\n");
     }
@@ -170,7 +173,7 @@ fn writeEnv(writer: anytype, ctx: Context, opts: cli.Options) !void {
     for (ctx.palette.indexed, 0..) |maybe, i| {
         if (!slotRequested(opts.only, .{ .palette_index = @intCast(i) })) continue;
         try writer.print("ANSI_{d}=", .{i});
-        if (maybe) |c| try writeColor(writer, c, opts.notation);
+        if (maybe) |c| try writeEnvColor(writer, c, opts.notation);
         try writer.writeByte('\n');
     }
     try writeEnvSpecial(writer, "FG", ctx.palette.foreground, .fg, opts);
@@ -186,13 +189,45 @@ fn writeEnv(writer: anytype, ctx: Context, opts: cli.Options) !void {
             const upper = std.ascii.allocUpperString(std.heap.page_allocator, name) catch continue;
             defer std.heap.page_allocator.free(upper);
             try writer.print("ANSI_{s}=", .{upper});
-            if (ctx.palette.indexed[i]) |c| try writeColor(writer, c, opts.notation);
+            if (ctx.palette.indexed[i]) |c| try writeEnvColor(writer, c, opts.notation);
             try writer.writeByte('\n');
         }
     }
 
     try writer.print("META_SOURCE={s}\n", .{ctx.source});
-    if (ctx.theme) |t| try writer.print("META_THEME={s}\n", .{t});
+    if (ctx.theme) |t| {
+        try writer.writeAll("META_THEME=");
+        try writeShellValue(writer, t);
+        try writer.writeByte('\n');
+    }
+}
+
+/// Bytes that never need quoting on the right-hand side of a shell assignment.
+fn isShellSafe(c: u8) bool {
+    return std.ascii.isAlphanumeric(c) or std.mem.indexOfScalar(u8, "_#.,:/@%+-", c) != null;
+}
+
+/// Writes `value` so that `eval`/`source` assigns it verbatim: unchanged when
+/// every byte is shell-safe (hex colors, simple names), single-quoted
+/// otherwise. The env format is documented as shell-sourceable, and theme
+/// names are not under our control.
+fn writeShellValue(writer: anytype, value: []const u8) !void {
+    for (value) |c| {
+        if (!isShellSafe(c)) break;
+    } else return writer.writeAll(value);
+
+    try writer.writeByte('\'');
+    for (value) |c| {
+        if (c == '\'') try writer.writeAll("'\\''") else try writer.writeByte(c);
+    }
+    try writer.writeByte('\'');
+}
+
+fn writeEnvColor(writer: anytype, color: palette.Color, notation: cli.Notation) !void {
+    var buf: [48]u8 = undefined;
+    var w: std.Io.Writer = .fixed(&buf);
+    try writeColor(&w, color, notation);
+    try writeShellValue(writer, w.buffered());
 }
 
 fn writeEnvSpecial(
@@ -204,7 +239,7 @@ fn writeEnvSpecial(
 ) !void {
     if (!slotRequested(opts.only, slot)) return;
     try writer.print("ANSI_{s}=", .{suffix});
-    if (val) |c| try writeColor(writer, c, opts.notation);
+    if (val) |c| try writeEnvColor(writer, c, opts.notation);
     try writer.writeByte('\n');
 }
 
@@ -234,7 +269,13 @@ fn writeFlat(writer: anytype, ctx: Context, opts: cli.Options) !void {
         try writer.writeByte('\n');
     }
     try writer.print("meta.source={s}\n", .{ctx.source});
-    if (ctx.theme) |t| try writer.print("meta.theme={s}\n", .{t});
+    if (ctx.theme) |t| {
+        // Flat is line-oriented: a control byte (newline) in the theme name
+        // must not be able to start a new line.
+        try writer.writeAll("meta.theme=");
+        for (t) |c| try writer.writeByte(if (std.ascii.isControl(c)) ' ' else c);
+        try writer.writeByte('\n');
+    }
     _ = SPECIAL_NAMES;
 }
 
@@ -395,6 +436,66 @@ test "env output emits META_THEME when set" {
     const out = aw.written();
     try std.testing.expect(std.mem.indexOf(u8, out, "META_SOURCE=ghostty\n") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "META_THEME=Dracula\n") != null);
+}
+
+test "env output quotes shell-unsafe theme names" {
+    const allocator = std.testing.allocator;
+    const pal = try makePalette(allocator);
+    defer allocator.free(pal.indexed);
+    const cases = [_]struct { theme: []const u8, want: []const u8 }{
+        .{ .theme = "Merino Dark", .want = "META_THEME='Merino Dark'\n" },
+        .{ .theme = "x; touch /tmp/pwned", .want = "META_THEME='x; touch /tmp/pwned'\n" },
+        .{ .theme = "$(id)`id`", .want = "META_THEME='$(id)`id`'\n" },
+        .{ .theme = "it's", .want = "META_THEME='it'\\''s'\n" },
+        .{ .theme = "light:A,dark:B", .want = "META_THEME=light:A,dark:B\n" },
+    };
+    for (cases) |case| {
+        var aw: std.Io.Writer.Allocating = .init(allocator);
+        defer aw.deinit();
+        try write(&aw.writer, .{ .palette = pal, .queried_at = "t", .theme = case.theme }, .{ .format = .env });
+        try std.testing.expect(std.mem.endsWith(u8, aw.written(), case.want));
+    }
+}
+
+test "env output quotes functional color notations, leaves hex bare" {
+    const allocator = std.testing.allocator;
+    const pal = try makePalette(allocator);
+    defer allocator.free(pal.indexed);
+    const ctx = Context{ .palette = pal, .queried_at = "t" };
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    try write(&aw.writer, ctx, .{ .format = .env, .notation = .rgb, .include_aliases = true });
+    const out = aw.written();
+    try std.testing.expect(std.mem.indexOf(u8, out, "ANSI_0='rgb(0 0 255)'\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "ANSI_FG='rgb(197 200 198)'\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "ANSI_BLACK='rgb(0 0 255)'\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "ANSI_3=\n") != null);
+}
+
+test "json output escapes theme names" {
+    const allocator = std.testing.allocator;
+    const pal = try makePalette(allocator);
+    defer allocator.free(pal.indexed);
+    const theme = "a\",\"injected\":\"yes\\\n";
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    try write(&aw.writer, .{ .palette = pal, .queried_at = "t", .theme = theme }, .{});
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, aw.written(), .{});
+    defer parsed.deinit();
+    const meta = parsed.value.object.get("meta").?.object;
+    try std.testing.expectEqualStrings(theme, meta.get("theme").?.string);
+    try std.testing.expect(meta.get("injected") == null);
+}
+
+test "flat output keeps a theme name on one line" {
+    const allocator = std.testing.allocator;
+    const pal = try makePalette(allocator);
+    defer allocator.free(pal.indexed);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    try write(&aw.writer, .{ .palette = pal, .queried_at = "t", .theme = "a\nmeta.source=evil" }, .{ .format = .flat });
+    try std.testing.expect(std.mem.endsWith(u8, aw.written(), "meta.source=osc\nmeta.theme=a meta.source=evil\n"));
 }
 
 test "rgb notation" {
