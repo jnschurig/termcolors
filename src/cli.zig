@@ -74,6 +74,8 @@ pub const Options = struct {
     no_multiplexer_wrap: bool = false,
     /// True if `--help` was requested. main() should print usage and exit 0.
     help: bool = false,
+    /// True if `--version` was requested. main() should print it and exit 0.
+    version: bool = false,
     /// Resolved `--source` value. Default `.auto`.
     source: Source = .auto,
     /// Fallback emulator parsed from `$TERMCOLORS_TERMINAL` for use by the
@@ -168,6 +170,8 @@ pub fn parse(allocator: std.mem.Allocator, args: []const []const u8) ParseError!
         const a = args[i];
         if (std.mem.eql(u8, a, "--help") or std.mem.eql(u8, a, "-h")) {
             opts.help = true;
+        } else if (std.mem.eql(u8, a, "--version") or std.mem.eql(u8, a, "-V")) {
+            opts.version = true;
         } else if (std.mem.eql(u8, a, "--include-aliases")) {
             opts.include_aliases = true;
         } else if (std.mem.eql(u8, a, "--include-256")) {

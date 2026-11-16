@@ -1,4 +1,5 @@
 const std = @import("std");
+const build_options = @import("build_options");
 const cli = @import("cli.zig");
 const config = @import("config.zig");
 const palette = @import("palette.zig");
@@ -30,6 +31,14 @@ pub fn main(init: std.process.Init) !u8 {
     };
     defer opts.deinit(gpa);
 
+    if (opts.version) {
+        var buf: [128]u8 = undefined;
+        var w = std.Io.File.Writer.initStreaming(std.Io.File.stdout(), io, &buf);
+        try w.interface.print("termcolors {s}\n", .{build_options.version});
+        try w.interface.flush();
+        return 0;
+    }
+
     cli.applyEnvFallback(gpa, init.environ_map, &opts) catch |err| switch (err) {
         cli.ParseError.ModeKeywordWhereEmulatorExpected => {
             // The env var carried a mode keyword (auto/osc) where an emulator
@@ -59,7 +68,7 @@ pub fn main(init: std.process.Init) !u8 {
             "usage: termcolors [--format=json|env|flat] [--color=hex|rgb|hsl|oklch] " ++
                 "[--only=...] [--timeout-ms=N] [--include-aliases] [--include-256] " ++
                 "[--no-multiplexer-wrap] [--source=auto|osc|<emulator>|<abs-path>] " ++
-                "[--osc-min-palette=N]\n",
+                "[--osc-min-palette=N] [--version]\n",
             .{},
         );
         return 0;
@@ -216,7 +225,7 @@ fn writeOutput(
     _ = gpa;
     const stdout_file = std.Io.File.stdout();
     var stdout_buf: [4096]u8 = undefined;
-    var stdout_writer = std.Io.File.Writer.init(stdout_file, io, &stdout_buf);
+    var stdout_writer = std.Io.File.Writer.initStreaming(stdout_file, io, &stdout_buf);
     try output.write(&stdout_writer.interface, ctx, opts);
     try stdout_writer.interface.flush();
     return 0;

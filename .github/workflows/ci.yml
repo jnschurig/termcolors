@@ -53,7 +53,13 @@ jobs:
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.17.1
-      - run: zig build release
+      - name: Build release binaries
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            zig build release -Dversion="${GITHUB_REF_NAME#v}"
+          else
+            zig build release
+          fi
       - name: Package binaries
         run: |
           cd zig-out/dist
