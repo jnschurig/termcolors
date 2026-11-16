@@ -1,0 +1,736 @@
+[
+ {
+  "id": 42,
+  "name": [
+   "x"
+  ],
+  "palette": "nope"
+ },
+ {
+  "name": "Monokai Pro",
+  "id": "custom-monokai",
+  "appearance": "dark",
+  "palette": {
+   "cursor": {
+    "red": 0.7568627450980392,
+    "blue": 0.7529411764705882,
+    "colorSpace": "srgb",
+    "green": 0.7529411764705882,
+    "alpha": 1
+   },
+   "paletteOverrides": {
+    "1": "not-a-color",
+    "x": [
+     1,
+     2
+    ]
+   },
+   "selectionBackground": {
+    "red": 0.3568627450980392,
+    "blue": 0.3607843137254902,
+    "colorSpace": "srgb",
+    "green": 0.34901960784313724,
+    "alpha": 1
+   },
+   "background": {
+    "red": 0.17647058823529413,
+    "blue": 0.1803921568627451,
+    "colorSpace": "srgb",
+    "green": 0.16470588235294117,
+    "alpha": 1
+   },
+   "foreground": {
+    "red": 0.9882352941176471,
+    "blue": 0.9803921568627451,
+    "colorSpace": "srgb",
+    "green": 0.9882352941176471,
+    "alpha": 1
+   },
+   "paletteBase": {
+    "16": {
+     "green": 0,
+     "colorSpace": "srgb",
+     "red": 0,
+     "blue": 0,
+     "alpha": 1
+    },
+    "196": {
+     "green": 0,
+     "colorSpace": "srgb",
+     "red": 1,
+     "blue": 0,
+     "alpha": 1
+    },
+    "255": {
+     "green": 0.9333333333333333,
+     "colorSpace": "srgb",
+     "red": 0.9333333333333333,
+     "blue": 0.9333333333333333,
+     "alpha": 1
+    },
+    "3": {
+     "red": 0,
+     "green": 0,
+     "blue": 1,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    "abc": {
+     "red": 1,
+     "green": 1,
+     "blue": 1,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    "999": {
+     "red": 1,
+     "green": 1,
+     "blue": 1,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    "-1": {
+     "red": 1,
+     "green": 1,
+     "blue": 1,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    "1_7": {
+     "red": 1,
+     "green": 1,
+     "blue": 1,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    }
+   },
+   "cursorText": {
+    "red": 0.5568627450980392,
+    "blue": 0.5529411764705883,
+    "colorSpace": "srgb",
+    "green": 0.5529411764705883,
+    "alpha": 1
+   },
+   "selectionForeground": {
+    "red": 0.9882352941176471,
+    "blue": 0.9803921568627451,
+    "colorSpace": "srgb",
+    "green": 0.9882352941176471,
+    "alpha": 1
+   },
+   "paletteGenerate": false,
+   "ansi": [
+    {
+     "red": 0.17647058823529413,
+     "blue": 0.1803921568627451,
+     "colorSpace": "srgb",
+     "green": 0.16470588235294117,
+     "alpha": 1
+    },
+    {
+     "red": 1,
+     "blue": 0.5333333333333333,
+     "colorSpace": "srgb",
+     "green": 0.3803921568627451,
+     "alpha": 1
+    },
+    {
+     "red": 0.6627450980392157,
+     "blue": 0.4627450980392157,
+     "colorSpace": "srgb",
+     "green": 0.8627450980392157,
+     "alpha": 1
+    },
+    {
+     "red": 1,
+     "blue": 0.4,
+     "colorSpace": "srgb",
+     "green": 0.8470588235294118,
+     "alpha": 1
+    },
+    {
+     "red": 0.9882352941176471,
+     "blue": 0.403921568627451,
+     "colorSpace": "srgb",
+     "green": 0.596078431372549,
+     "alpha": 1
+    },
+    {
+     "red": 0.6705882352941176,
+     "blue": 0.9490196078431372,
+     "colorSpace": "srgb",
+     "green": 0.615686274509804,
+     "alpha": 1
+    },
+    {
+     "red": 0.47058823529411764,
+     "blue": 0.9098039215686274,
+     "colorSpace": "srgb",
+     "green": 0.8627450980392157,
+     "alpha": 1
+    },
+    {
+     "red": 0.9882352941176471,
+     "blue": 0.9803921568627451,
+     "colorSpace": "srgb",
+     "green": 0.9882352941176471,
+     "alpha": 1
+    },
+    {
+     "red": 0.4470588235294118,
+     "blue": 0.4470588235294118,
+     "colorSpace": "srgb",
+     "green": 0.4392156862745098,
+     "alpha": 1
+    },
+    {
+     "red": 1,
+     "blue": 0.5333333333333333,
+     "colorSpace": "srgb",
+     "green": 0.3803921568627451,
+     "alpha": 1
+    },
+    {
+     "red": 0.6627450980392157,
+     "blue": 0.4627450980392157,
+     "colorSpace": "srgb",
+     "green": 0.8627450980392157,
+     "alpha": 1
+    },
+    {
+     "red": 1,
+     "blue": 0.4,
+     "colorSpace": "srgb",
+     "green": 0.8470588235294118,
+     "alpha": 1
+    },
+    {
+     "red": 0.9882352941176471,
+     "blue": 0.403921568627451,
+     "colorSpace": "srgb",
+     "green": 0.596078431372549,
+     "alpha": 1
+    },
+    {
+     "red": 0.6705882352941176,
+     "blue": 0.9490196078431372,
+     "colorSpace": "srgb",
+     "green": 0.615686274509804,
+     "alpha": 1
+    },
+    {
+     "red": 0.47058823529411764,
+     "blue": 0.9098039215686274,
+     "colorSpace": "srgb",
+     "green": 0.8627450980392157,
+     "alpha": 1
+    },
+    {
+     "red": 0.9882352941176471,
+     "blue": 0.9803921568627451,
+     "colorSpace": "srgb",
+     "green": 0.9882352941176471,
+     "alpha": 1
+    }
+   ],
+   "paletteHarmonious": false
+  },
+  "source": {
+   "ghosttyFile": {
+    "fileName": "Monokai Pro"
+   }
+  },
+  "createdAt": 816561229.068763
+ },
+ {
+  "id": "custom-sparse",
+  "name": "Sparse",
+  "appearance": "light",
+  "palette": {
+   "ansi": [
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    }
+   ],
+   "background": {
+    "red": 1,
+    "green": 1,
+    "blue": 1,
+    "alpha": 1,
+    "colorSpace": "srgb"
+   },
+   "foreground": {
+    "red": 0,
+    "green": 0,
+    "blue": 0,
+    "alpha": 1,
+    "colorSpace": "srgb"
+   },
+   "cursor": null
+  }
+ },
+ {
+  "id": "custom-short-ansi",
+  "name": "Short",
+  "palette": {
+   "ansi": [
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    }
+   ]
+  }
+ },
+ {
+  "id": "custom-missing-channel",
+  "palette": {
+   "ansi": [
+    {
+     "red": 0,
+     "green": 0
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    }
+   ]
+  }
+ },
+ {
+  "id": "custom-rounding",
+  "name": "",
+  "palette": {
+   "ansi": [
+    {
+     "red": 0.5,
+     "green": 1.2,
+     "blue": -0.1
+    },
+    {
+     "red": 1,
+     "green": 0,
+     "blue": 1
+    },
+    {
+     "red": 0.498,
+     "green": 0.5019,
+     "blue": 2
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    },
+    {
+     "red": 0,
+     "green": 0,
+     "blue": 0,
+     "alpha": 1,
+     "colorSpace": "srgb"
+    }
+   ],
+   "background": {
+    "red": 0.1,
+    "green": 0.2,
+    "blue": 0.3,
+    "alpha": 0.5,
+    "colorSpace": "display-p3"
+   }
+  }
+ },
+ {
+  "id": "custom-no-palette",
+  "name": "No Palette"
+ },
+ "stray"
+]

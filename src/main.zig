@@ -288,6 +288,9 @@ fn emitRexError(err: rex_source.AcquireError) void {
         rex_source.AcquireError.MalformedThemes => {
             std.debug.print("termcolors: Rex themes file malformed: {s}\n", .{detail});
         },
+        rex_source.AcquireError.MalformedCustomThemes => {
+            std.debug.print("termcolors: Rex custom themes malformed: {s}\n", .{detail});
+        },
         rex_source.AcquireError.OutOfMemory => {
             std.debug.print("termcolors: out of memory\n", .{});
         },

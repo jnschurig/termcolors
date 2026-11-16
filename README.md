@@ -122,14 +122,14 @@ termcolors_source = ghostty
 termcolors --source rex
 ```
 
-It looks up the theme selected in Rex's preferences (the dark or light one, following Rex's Color scheme setting and otherwise the system appearance) in the `themes.json` shipped inside the Rex app. Limits:
+It looks up the theme selected in Rex's preferences (the dark or light one, following Rex's Color scheme setting and otherwise the system appearance) in the `themes.json` shipped inside the Rex app. A theme that isn't built in — one you imported (for example from Ghostty) or made yourself — is read from the custom themes Rex stores in its preferences. Limits:
 
 - macOS only. On other platforms it exits 4.
-- Built-in themes only. A custom theme exits 4.
+- For custom themes, per-index palette overrides (`paletteOverrides`) are not applied, and a color stored in a non-sRGB color space is read as if it were sRGB.
 - It reports what the preferences say, not what a particular pane shows. Colors a program changed in a pane are not reflected.
-- It expects `Rex Beta.app` or `Rex.app` in `/Applications` or `~/Applications` and the `com.superlogical.rex` preferences. A second install, or a release channel with a different app name or preferences domain, is not detected.
+- It expects `Rex Beta.app` or `Rex.app` in `/Applications` or `~/Applications` (needed for built-in themes only) and the `com.superlogical.rex` preferences. A second install, or a release channel with a different app name or preferences domain, is not detected.
 - It depends on undocumented Rex internals and may break with a Rex update; the exit-4 message names the key or file that failed.
-- With `--include-256`, indices 16–255 are `null`.
+- With `--include-256`, indices 16–255 are `null` for built-in themes; custom themes fill them from the theme's stored 256-color table.
 - There is no absolute-path form.
 
 ## Exit codes
