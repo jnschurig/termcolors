@@ -17,7 +17,9 @@ See `terminal-colors-design.md` for the authoritative design (color acquisition 
 - `zig build release` — cross-compile static release binaries for the four supported targets (linux x86_64/aarch64 musl, macOS x86_64/aarch64) into `zig-out/dist/<triple>/`.
 - `zig fmt src/ tests/` — format. `zig fmt --check` runs in pre-commit; `zig build` and `zig build test` run on pre-push.
 
-To run a single unit test, use `zig test -lc --test-filter "<name>" src/main.zig` (test files import `../`, so running `zig test` on one directly fails); there is no per-test `build.zig` step.
+To run a single unit test, use `zig build test -Dtest-filter="<name>"` (bare `zig test` fails: `main.zig` imports the generated `build_options` module).
+
+Version: `--version` prints `build_options.version`, set with `-Dversion=X.Y.Z` (CI passes the tag on release) and otherwise derived from `git describe` in `build.zig` (`gitVersion`), e.g. `0.2.0-dev.3+c40c625[.dirty]`; `0.0.0-dev` outside a git checkout.
 
 CI (`.github/workflows/ci.yml`): matrix over `ubuntu-latest` + `macos-latest` runs fmt-check, build, unit tests, and integration tests on every push/PR. Tagged pushes (`v*`) build cross-compiled release binaries and publish a GitHub Release; workflow_dispatch runs the release job as a dry-run that uploads artifacts without publishing.
 

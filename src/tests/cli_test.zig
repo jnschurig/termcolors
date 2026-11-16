@@ -18,6 +18,14 @@ test "defaults" {
     try std.testing.expectEqual(false, opts.include_aliases);
 }
 
+test "version flag" {
+    for ([_][]const u8{ "--version", "-V" }) |flag| {
+        var opts = try parse(std.testing.allocator, &.{ "x", flag });
+        defer opts.deinit(std.testing.allocator);
+        try std.testing.expect(opts.version);
+    }
+}
+
 test "format and notation" {
     var opts = try parse(std.testing.allocator, &.{ "x", "--format", "env", "--color=oklch" });
     defer opts.deinit(std.testing.allocator);
