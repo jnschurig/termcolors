@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-`termcolors` — a small Zig CLI that queries the active terminal emulator for its current color palette via OSC escape sequences and emits the result in a machine-readable format (json/env/flat, in hex/rgb/hsl/oklch). Requires Zig >= 0.15.0. No dependencies.
+`termcolors` — a small Zig CLI that queries the active terminal emulator for its current color palette via OSC escape sequences and emits the result in a machine-readable format (json/env/flat, in hex/rgb/hsl/oklch). Requires Zig >= 0.17.1. No dependencies.
 
 See `terminal-colors-design.md` for the authoritative design (color acquisition protocol, output schema, error/exit-code contract).
 
@@ -34,7 +34,7 @@ Key invariants to preserve when editing:
 - **TTY isolation:** all terminal I/O goes through `/dev/tty` (never stdin/stdout) so the tool works under pipes. `terminal.zig` owns raw-mode lifecycle and must restore on every exit path including panics/signals.
 - **Batched queries:** `query.writeQueries` sends all OSC sequences before reading any reply. Don't reintroduce per-request round-trips — the design budget is tens of milliseconds total.
 - **Permissive parser:** terminals vary in channel width (2- vs 4-digit), include/omit alpha, and terminate with `BEL` or `ESC \`. The parser must accept all of these.
-- **Multiplexer passthrough:** when `TMUX`/`STY` is set, queries are wrapped so the host terminal sees them. If every reply is missing inside a multiplexer, exit 3 with the tmux passthrough hint (see `main.zig`).
+- **Multiplexer passthrough:** `TMUX`/`STY` are detected, but wrapping is **not implemented yet** (`multiplexer.wrap` is a stub; see "Future considerations" in the design doc). If every reply is missing inside a multiplexer, exit 3 with the tmux passthrough hint (see `main.zig`).
 - **Module purity:** `parser`, `convert`, and `multiplexer` are pure over their inputs; don't pull TTY or allocator state into them.
 
 Exit codes: `0` success, `1` argument error, `2` no controlling tty, `3` multiplexer with no passthrough, `4` emulator source failed.

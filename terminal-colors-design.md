@@ -175,7 +175,7 @@ ANSI_SELECTION_BG=#373b41
 ANSI_SELECTION_FG=#c5c8c6
 ```
 
-An empty value indicates `null` (no terminal response). With `--include-aliases`, additional `ANSI_BLACK=#1d1f21`, `ANSI_RED=#cc6666`, etc. are emitted alongside the indexed keys.
+An empty value indicates `null` (no terminal response). Values containing shell-special characters — `rgb(...)`/`hsl(...)`/`oklch(...)` colors and some `META_THEME` names — are single-quoted so the output is safe to `eval`; hex colors are emitted bare. With `--include-aliases`, additional `ANSI_BLACK=#1d1f21`, `ANSI_RED=#cc6666`, etc. are emitted alongside the indexed keys.
 
 ### `--format flat`
 
@@ -240,4 +240,6 @@ These are deferred to keep v1 scope tight. None require breaking the schema to a
 - **Additional special slots.** Bold color (some terminals distinguish bold from bright), mouse cursor foreground, link/underline color. Out of v1, revisit if a real consumer needs them.
 - **256-color aliases.** Indices 16–255 form a structured 6×6×6 cube plus a grayscale ramp; they're canonically referred to by index. We could expose names if a consumer asks, but the index identifier stays primary.
 - **Rex on Linux, and Rex in CI.** The `rex` source is macOS-only because that is the only Rex client today. When a Linux client and a public release exist: add a Linux branch to the source's platform lookup (using the XDG desktop portal `org.freedesktop.appearance` color-scheme for dark/light rather than per-desktop lookups), and run tests against a real Rex install in CI. Custom Rex themes (prefs key `Workspace.customThemes`) are also unsupported for now.
+- **Multiplexer passthrough wrapping.** Not implemented yet: inside tmux/screen the OSC queries are sent unwrapped (`multiplexer.wrap` is a stub and `--no-multiplexer-wrap` is a no-op), so results depend on the multiplexer answering the queries itself, and the exit-3 `allow-passthrough` hint cannot actually fix a silent multiplexer. Implementing the tmux and screen DCS passthrough envelopes, wiring them into the batched query write, and verifying against real tmux/screen versions is a planned follow-up.
+- **Release provenance.** Releases ship a `SHA256SUMS` file, and the Homebrew formula pins per-asset hashes, but there is no cryptographic link from a tarball back to the CI run that built it. Known gap. Planned: build attestations (`actions/attest-build-provenance`, verifiable with `gh attestation verify`) and enabling GitHub immutable releases so published assets and tags cannot be replaced. Immutable releases require assets to be attached before a release is published, which changes the current "create the release by hand, let CI attach assets" flow.
 - **Windows support.** Windows Terminal speaks OSC and could be supported; the Windows console host has a different model. Better as a separate design pass than retrofitted into v1.

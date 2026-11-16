@@ -6,6 +6,11 @@ const parser = @import("parser.zig");
 const ESC: u8 = 0x1b;
 const BEL: u8 = 0x07;
 
+/// Cap on buffered bytes that have not parsed into a reply. A complete
+/// 256-slot reply set is under 8 KiB, so anything beyond this is a flood
+/// (e.g. an OSC that never terminates), and is dropped rather than grown.
+const MAX_PENDING_BYTES = 64 * 1024;
+
 /// When the env var `TERMCOLORS_DEBUG_OSC` is set to any non-empty value at
 /// program start, the read loops emit per-iteration diagnostics to stderr.
 /// Tracks why the loop exits / how data is flowing, for terminal-specific
@@ -197,6 +202,7 @@ fn drainBuffer(
         std.mem.copyForwards(u8, buf.items[0..remaining], buf.items[start..]);
         buf.shrinkRetainingCapacity(remaining);
     }
+    if (buf.items.len > MAX_PENDING_BYTES) buf.clearRetainingCapacity();
 }
 
 const Range = struct { start: usize, end: usize };
@@ -309,7 +315,7 @@ test "drainBuffer dispatches replies and trims" {
     try pending.put(allocator, kindToken(.foreground, 0), {});
     try pending.put(allocator, kindToken(.background, 0), {});
 
-    var indexed = [_]?palette.Color{null} ** 16;
+    var indexed: [16]?palette.Color = @splat(null);
     var pal = palette.Palette{ .indexed = &indexed };
     try drainBuffer(&buf, &pending, &pal);
 
@@ -317,4 +323,24 @@ test "drainBuffer dispatches replies and trims" {
     try std.testing.expectEqual(@as(u8, 0xc5), pal.foreground.?.r);
     try std.testing.expectEqual(@as(u8, 0x1d), pal.background.?.r);
     try std.testing.expectEqualStrings("trailing", buf.items);
+}
+
+test "drainBuffer drops an unterminated flood instead of growing" {
+    const allocator = std.testing.allocator;
+    var buf: std.ArrayListUnmanaged(u8) = .empty;
+    defer buf.deinit(allocator);
+    var pending: std.AutoHashMapUnmanaged(u32, void) = .empty;
+    defer pending.deinit(allocator);
+    var indexed: [16]?palette.Color = @splat(null);
+    var pal = palette.Palette{ .indexed = &indexed };
+
+    try buf.appendSlice(allocator, "\x1b]10;");
+    try buf.appendNTimes(allocator, 'A', MAX_PENDING_BYTES);
+    try drainBuffer(&buf, &pending, &pal);
+    try std.testing.expectEqual(@as(usize, 0), buf.items.len);
+
+    // A well-formed reply after the flood still parses.
+    try buf.appendSlice(allocator, "\x1b]11;rgb:1d/1f/21\x07");
+    try drainBuffer(&buf, &pending, &pal);
+    try std.testing.expectEqual(@as(u8, 0x1d), pal.background.?.r);
 }

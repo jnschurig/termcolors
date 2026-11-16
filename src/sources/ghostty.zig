@@ -26,6 +26,10 @@ pub const Result = struct {
     }
 };
 
+const STDOUT_MAX_BYTES = 4 * 1024 * 1024;
+const STDERR_MAX_BYTES = 64 * 1024;
+const TIMEOUT_SECONDS = 10;
+
 /// Captured subprocess diagnostic when ghostty exits non-zero.
 pub var last_stderr_first_line: [256]u8 = undefined;
 pub var last_stderr_first_line_len: usize = 0;
@@ -51,7 +55,13 @@ pub fn acquire(
         "+show-config",
     };
 
-    const run_result = std.process.run(gpa, io, .{ .argv = &argv }) catch |err| switch (err) {
+    // Bounded: a hung or runaway binary must not hang us or exhaust memory.
+    const run_result = std.process.run(gpa, io, .{
+        .argv = &argv,
+        .stdout_limit = .limited(STDOUT_MAX_BYTES),
+        .stderr_limit = .limited(STDERR_MAX_BYTES),
+        .timeout = .{ .duration = .{ .raw = .fromSeconds(TIMEOUT_SECONDS), .clock = .awake } },
+    }) catch |err| switch (err) {
         error.FileNotFound => return AcquireError.BinaryNotFound,
         error.OutOfMemory => return AcquireError.OutOfMemory,
         else => return AcquireError.SubprocessFailed,
@@ -77,7 +87,10 @@ fn captureStderrFirstLine(stderr: []const u8) void {
     const nl = std.mem.indexOfScalar(u8, stderr, '\n') orelse stderr.len;
     const line = stderr[0..nl];
     const copy_len = @min(line.len, last_stderr_first_line.len);
-    @memcpy(last_stderr_first_line[0..copy_len], line[0..copy_len]);
+    // The line is echoed to the user's terminal: neutralize control bytes.
+    for (last_stderr_first_line[0..copy_len], line[0..copy_len]) |*dst, c| {
+        dst.* = if (std.ascii.isControl(c)) '?' else c;
+    }
     last_stderr_first_line_len = copy_len;
 }
 
@@ -136,7 +149,11 @@ pub fn parseShowConfig(
         } else if (std.mem.eql(u8, key, "selection-foreground")) {
             if (value.len > 0) pal.selection_foreground = try parseHexColor(value);
         } else if (std.mem.eql(u8, key, "theme")) {
-            if (value.len > 0) theme = try gpa.dupe(u8, value);
+            if (value.len > 0) {
+                if (theme) |old| gpa.free(old);
+                theme = null;
+                theme = try gpa.dupe(u8, value);
+            }
         }
     }
 
@@ -235,4 +252,19 @@ test "hex without leading # is accepted" {
     var result = try parseShowConfig(std.testing.allocator, text, false);
     defer result.deinit(std.testing.allocator);
     try std.testing.expectEqual(@as(u8, 0xaa), result.palette.foreground.?.r);
+}
+
+test "repeated theme lines: last wins, no leak" {
+    const text = "theme = First\ntheme = Second\n";
+    var result = try parseShowConfig(std.testing.allocator, text, false);
+    defer result.deinit(std.testing.allocator);
+    try std.testing.expectEqualStrings("Second", result.theme.?);
+}
+
+test "captured stderr line has control bytes neutralized" {
+    captureStderrFirstLine("bad \x1b]0;title\x07 thing\nsecond line");
+    try std.testing.expectEqualStrings(
+        "bad ?]0;title? thing",
+        last_stderr_first_line[0..last_stderr_first_line_len],
+    );
 }

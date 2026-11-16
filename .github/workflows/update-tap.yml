@@ -19,14 +19,26 @@ on:
         description: 'Release tag to sync (e.g. v0.1.2)'
         required: true
 
+permissions:
+  contents: read
+
 jobs:
   update-formula:
     runs-on: ubuntu-latest
     steps:
       - name: Resolve tag and version
         id: meta
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
-          tag="${{ inputs.tag }}"
+          set -euo pipefail
+          # Never interpolate the input into the script; validate it so the
+          # step outputs used below are known-safe.
+          tag="$INPUT_TAG"
+          if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::tag must look like v1.2.3"
+            exit 1
+          fi
           version="${tag#v}"
           echo "tag=$tag"         >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -54,7 +66,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Check out tap repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           repository: jnschurig/homebrew-termcolors
           ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
