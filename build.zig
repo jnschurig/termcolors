@@ -107,6 +107,11 @@ pub fn build(b: *std.Build) void {
 /// for uncommitted changes. Outside a git checkout: `0.0.0-dev`.
 fn gitVersion(b: *std.Build) []const u8 {
     const unknown = "0.0.0-dev";
+    // The result depends on HEAD, tags and working-tree dirtiness, none of
+    // which the configure cache can track; without this, `zig build` reuses
+    // the cached configuration and bakes in a stale version.
+    b.graph.poisonCache();
+
     var code: u8 = undefined;
     const raw = b.runAllowFail(&.{
         "git",      "-C",     b.root.toString(b.allocator) catch @panic("OOM"),
