@@ -340,4 +340,12 @@ test {
     _ = @import("sources/osc.zig");
     _ = @import("sources/ghostty.zig");
     _ = @import("sources/rex.zig");
+    _ = @import("tests/cli_test.zig");
+    _ = @import("tests/config_test.zig");
+    _ = @import("tests/convert_test.zig");
+    _ = @import("tests/output_test.zig");
+    _ = @import("tests/parser_test.zig");
+    _ = @import("tests/query_test.zig");
+    _ = @import("tests/sources/ghostty_test.zig");
+    _ = @import("tests/sources/rex_test.zig");
 }

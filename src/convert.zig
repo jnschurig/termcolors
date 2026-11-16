@@ -59,15 +59,3 @@ fn srgbToLinear(v: u8) f64 {
     const x = @as(f64, @floatFromInt(v)) / 255.0;
     return if (x <= 0.04045) x / 12.92 else std.math.pow(f64, (x + 0.055) / 1.055, 2.4);
 }
-
-test "hex round trip" {
-    var buf: [7]u8 = undefined;
-    const s = toHex(.{ .r = 29, .g = 31, .b = 33 }, &buf);
-    try std.testing.expectEqualStrings("#1d1f21", s);
-}
-
-test "oklch white" {
-    const r = toOklch(.{ .r = 255, .g = 255, .b = 255 });
-    try std.testing.expect(r.l > 0.99 and r.l <= 1.0);
-    try std.testing.expect(r.c < 0.001);
-}
