@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-`termcolors` — a small Zig CLI that queries the active terminal emulator for its current color palette via OSC escape sequences and emits the result in a machine-readable format (json/env/flat, in hex/rgb/hsl/oklch). Requires Zig >= 0.15.0. No dependencies.
+`termcolors` — a small Zig CLI that queries the active terminal emulator for its current color palette via OSC escape sequences and emits the result in a machine-readable format (json/env/flat, in hex/rgb/hsl/oklch). Requires Zig >= 0.17.1. No dependencies.
 
 See `terminal-colors-design.md` for the authoritative design (color acquisition protocol, output schema, error/exit-code contract).
 

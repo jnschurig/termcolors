@@ -26,7 +26,7 @@ pub fn build(b: *std.Build) void {
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| run_cmd.addArgs(args);
+    run_cmd.addPassthruArgs();
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
@@ -50,8 +50,10 @@ pub fn build(b: *std.Build) void {
     // forkpty lives in libutil on Linux; macOS exposes it in libc.
     if (target.result.os.tag == .linux) integ_module.linkSystemLibrary("util", .{});
 
+    // The tests exec the compiler-emitted binary (same artifact that gets
+    // installed to zig-out/bin); install paths aren't known at configure time.
     const integ_opts = b.addOptions();
-    integ_opts.addOption([]const u8, "exe_path", b.getInstallPath(.bin, "termcolors"));
+    integ_opts.addOptionPath("exe_path", exe.getEmittedBin());
     integ_module.addOptions("build_options", integ_opts);
 
     const integ_tests = b.addTest(.{ .root_module = integ_module });
@@ -66,7 +68,7 @@ pub fn build(b: *std.Build) void {
         const rel_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = resolved,
-            .optimize = .ReleaseFast,
+            .optimize = .fast,
             .link_libc = true,
         });
         const rel = b.addExecutable(.{

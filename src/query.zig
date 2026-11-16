@@ -309,7 +309,7 @@ test "drainBuffer dispatches replies and trims" {
     try pending.put(allocator, kindToken(.foreground, 0), {});
     try pending.put(allocator, kindToken(.background, 0), {});
 
-    var indexed = [_]?palette.Color{null} ** 16;
+    var indexed: [16]?palette.Color = @splat(null);
     var pal = palette.Palette{ .indexed = &indexed };
     try drainBuffer(&buf, &pending, &pal);
 

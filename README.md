@@ -20,10 +20,10 @@ The tap [`jnschurig/homebrew-termcolors`](https://github.com/jnschurig/homebrew-
 
 ### From source
 
-Zig toolchain version is pinned via `mise.toml`.
+Requires Zig >= 0.17.1; the toolchain version is pinned via `mise.toml`.
 
 ```sh
-zig build -Doptimize=ReleaseFast
+zig build -Doptimize=fast
 ./zig-out/bin/termcolors
 ```
 

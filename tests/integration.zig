@@ -71,8 +71,8 @@ pub fn runWithFakeTerminal(
         for (argv_buf.items) |p| if (p) |np| allocator.free(std.mem.span(np));
         argv_buf.deinit(allocator);
     }
-    try argv_buf.append(allocator, try allocator.dupeZ(u8, build_options.exe_path));
-    for (args) |a| try argv_buf.append(allocator, try allocator.dupeZ(u8, a));
+    try argv_buf.append(allocator, try allocator.dupeSentinel(u8, build_options.exe_path, 0));
+    for (args) |a| try argv_buf.append(allocator, try allocator.dupeSentinel(u8, a, 0));
     try argv_buf.append(allocator, null);
 
     // Build envp: minimal PATH + caller-provided.
@@ -81,8 +81,8 @@ pub fn runWithFakeTerminal(
         for (envp_buf.items) |p| if (p) |np| allocator.free(std.mem.span(np));
         envp_buf.deinit(allocator);
     }
-    try envp_buf.append(allocator, try allocator.dupeZ(u8, "PATH=/usr/bin:/bin"));
-    for (extra_env) |kv| try envp_buf.append(allocator, try allocator.dupeZ(u8, kv));
+    try envp_buf.append(allocator, try allocator.dupeSentinel(u8, "PATH=/usr/bin:/bin", 0));
+    for (extra_env) |kv| try envp_buf.append(allocator, try allocator.dupeSentinel(u8, kv, 0));
     try envp_buf.append(allocator, null);
 
     var master_fd: c_int = -1;
@@ -242,7 +242,7 @@ fn solarized() Fixture {
 
 fn emptyPalette() Fixture {
     const idx = struct {
-        const data = [_]?RGB{null} ** 16;
+        const data: [16]?RGB = @splat(null);
     };
     return .{ .indexed = &idx.data };
 }
