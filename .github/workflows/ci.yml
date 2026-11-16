@@ -72,13 +72,24 @@ jobs:
             termcolors-*.tar.gz
             SHA256SUMS
           retention-days: 7
+      # Uses the preinstalled `gh` CLI rather than a third-party action, so
+      # no outside code runs with this job's contents: write token.
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
-        with:
-          files: |
-            termcolors-*.tar.gz
-            SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          assets=(termcolors-*.tar.gz SHA256SUMS)
+          if gh release view "$tag" >/dev/null 2>&1; then
+            # Release already exists (created by hand with notes, or this is
+            # a re-run): attach the assets, leave its title and notes alone.
+            gh release upload "$tag" "${assets[@]}" --clobber
+          else
+            gh release create "$tag" "${assets[@]}" --title "$tag" --notes "" --verify-tag
+          fi
 
       # Update the Homebrew tap in the same job, *after* the assets are
       # uploaded. Doing this here (rather than in a separate workflow triggered

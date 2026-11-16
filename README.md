@@ -157,6 +157,6 @@ Integration tests live in [`tests/integration.zig`](./tests/integration.zig). Th
 
 ### CI
 
-GitHub Actions (`.github/workflows/ci.yml`) runs `zig fmt --check`, `zig build`, `zig build test`, and `zig build test-integration` on `ubuntu-latest` and `macos-latest` for every push and PR. Pushing a `v*` tag additionally runs the `release` job, which cross-compiles all four target binaries and publishes them as a GitHub Release. The release job can also be invoked manually from the Actions tab (workflow dispatch) for a dry-run that uploads the tarballs as a workflow artifact without publishing a Release.
+GitHub Actions (`.github/workflows/ci.yml`) runs `zig fmt --check`, `zig build`, `zig build test`, and `zig build test-integration` on `ubuntu-latest` and `macos-latest` for every push and PR. Pushing a `v*` tag additionally runs the `release` job, which cross-compiles all four target binaries and publishes them, with a `SHA256SUMS` file, as a GitHub Release. The release job can also be invoked manually from the Actions tab (workflow dispatch) for a dry-run that uploads the tarballs as a workflow artifact without publishing a Release.
 
 See [`terminal-colors-design.md`](./terminal-colors-design.md) for the full design — color acquisition protocol, output schema, module layout, and the contract for callers.
