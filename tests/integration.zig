@@ -247,6 +247,37 @@ fn emptyPalette() Fixture {
     return .{ .indexed = &idx.data };
 }
 
+/// What Rex answers in a normal pane: all 16 palette slots plus
+/// foreground/background/cursor, and silence on the selection queries.
+fn rexLike() Fixture {
+    const idx = struct {
+        const data = [_]?RGB{
+            .{ .r = 0x48, .g = 0x4f, .b = 0x58 },
+            .{ .r = 0xff, .g = 0x7b, .b = 0x72 },
+            .{ .r = 0x3f, .g = 0xb9, .b = 0x50 },
+            .{ .r = 0xd2, .g = 0x99, .b = 0x22 },
+            .{ .r = 0x58, .g = 0xa6, .b = 0xff },
+            .{ .r = 0xbc, .g = 0x8c, .b = 0xff },
+            .{ .r = 0x39, .g = 0xc5, .b = 0xcf },
+            .{ .r = 0xb1, .g = 0xba, .b = 0xc4 },
+            .{ .r = 0x6e, .g = 0x76, .b = 0x81 },
+            .{ .r = 0xff, .g = 0xa1, .b = 0x98 },
+            .{ .r = 0x56, .g = 0xd3, .b = 0x64 },
+            .{ .r = 0xe3, .g = 0xb3, .b = 0x41 },
+            .{ .r = 0x79, .g = 0xc0, .b = 0xff },
+            .{ .r = 0xd2, .g = 0xa8, .b = 0xff },
+            .{ .r = 0x56, .g = 0xd4, .b = 0xdd },
+            .{ .r = 0xff, .g = 0xff, .b = 0xff },
+        };
+    };
+    return .{
+        .indexed = &idx.data,
+        .foreground = .{ .r = 0xe6, .g = 0xed, .b = 0xf3 },
+        .background = .{ .r = 0x0d, .g = 0x11, .b = 0x17 },
+        .cursor = .{ .r = 0x2f, .g = 0x81, .b = 0xf7 },
+    };
+}
+
 // ===== tests =====
 
 test "happy path: flat hex output" {
@@ -337,4 +368,43 @@ test "all replies missing produces notice in output" {
     // user the terminal isn't responding.
     try std.testing.expectEqual(@as(u8, 0), result.exit_code);
     try std.testing.expect(std.mem.indexOf(u8, result.output, "no OSC color replies") != null);
+}
+
+test "rex-shaped replies: palette/fg/bg/cursor populated, selection unsupported" {
+    const allocator = std.testing.allocator;
+    var result = try runWithFakeTerminal(
+        allocator,
+        &.{ "--source=osc", "--format=json", "--color=hex" },
+        &.{},
+        rexLike(),
+    );
+    defer result.deinit(allocator);
+    try std.testing.expectEqual(@as(u8, 0), result.exit_code);
+
+    var parsed = try std.json.parseFromSlice(std.json.Value, allocator, result.output, .{});
+    defer parsed.deinit();
+    const root = parsed.value.object;
+
+    const pal = root.get("palette").?.array;
+    try std.testing.expectEqual(@as(usize, 16), pal.items.len);
+    for (pal.items) |v| try std.testing.expect(v == .string);
+    try std.testing.expectEqualStrings("#484f58", pal.items[0].string);
+    try std.testing.expectEqualStrings("#ffffff", pal.items[15].string);
+
+    const special = root.get("special").?.object;
+    try std.testing.expectEqualStrings("#e6edf3", special.get("foreground").?.string);
+    try std.testing.expectEqualStrings("#0d1117", special.get("background").?.string);
+    try std.testing.expectEqualStrings("#2f81f7", special.get("cursor").?.string);
+    try std.testing.expect(special.get("selection_background").? == .null);
+    try std.testing.expect(special.get("selection_foreground").? == .null);
+
+    const meta = root.get("meta").?.object;
+    try std.testing.expectEqualStrings("osc", meta.get("source").?.string);
+    var saw_sel_bg = false;
+    var saw_sel_fg = false;
+    for (meta.get("unsupported").?.array.items) |v| {
+        if (std.mem.eql(u8, v.string, "selection_background")) saw_sel_bg = true;
+        if (std.mem.eql(u8, v.string, "selection_foreground")) saw_sel_fg = true;
+    }
+    try std.testing.expect(saw_sel_bg and saw_sel_fg);
 }

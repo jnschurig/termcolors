@@ -33,7 +33,11 @@ pub const Slot = union(enum) {
 
 /// Names of compiled-in emulator sources. Single source of truth for both
 /// `--source` parsing and config-file parsing.
-pub const KNOWN_SOURCES = [_][]const u8{"ghostty"};
+pub const KNOWN_SOURCES = [_][]const u8{ "ghostty", "rex" };
+
+/// Sources that run no emulator binary, so the absolute-path form of
+/// `--source` has nothing to point at and is rejected for them.
+const PATHLESS_SOURCES = [_][]const u8{"rex"};
 
 /// Resolved value for `--source` / `$TERMCOLORS_TERMINAL` / config `termcolors_source`.
 pub const Source = union(enum) {
@@ -108,7 +112,8 @@ const OSC_MIN_PALETTE_HIGH: u8 = 16;
 /// Allowed forms:
 ///   * `auto`, `osc` — mode keywords (returned as `.auto` / `.osc`).
 ///   * `<name>` — name of a compiled-in emulator (must be in `KNOWN_SOURCES`).
-///   * `/abs/path/to/<name>` — absolute path whose basename matches a known source.
+///   * `/abs/path/to/<name>` — absolute path whose basename matches a known source
+///     that runs a binary (not `rex`).
 ///
 /// `allow_modes = false` rejects `auto`/`osc` with `ModeKeywordWhereEmulatorExpected`
 /// (used for env-var and config-file inputs which only accept emulators).
@@ -129,6 +134,7 @@ pub fn parseSource(
     if (value[0] == '/') {
         const base = std.fs.path.basename(value);
         if (!isKnownSourceName(base)) return ParseError.InvalidValue;
+        for (PATHLESS_SOURCES) |n| if (std.mem.eql(u8, base, n)) return ParseError.InvalidValue;
         const owned = try allocator.dupe(u8, value);
         return .{ .emulator = .{ .name = canonicalSourceName(base), .binary = owned } };
     }
@@ -352,6 +358,22 @@ test "source accepts absolute path whose basename matches a known source" {
         },
         else => return error.TestUnexpectedResult,
     }
+}
+
+test "source accepts rex by name but not by path" {
+    var opts = try parse(std.testing.allocator, &.{ "x", "--source", "rex" });
+    defer opts.deinit(std.testing.allocator);
+    switch (opts.source) {
+        .emulator => |e| {
+            try std.testing.expectEqualStrings("rex", e.name);
+            try std.testing.expect(e.binary == null);
+        },
+        else => return error.TestUnexpectedResult,
+    }
+    try std.testing.expectError(
+        ParseError.InvalidValue,
+        parse(std.testing.allocator, &.{ "x", "--source", "/usr/local/bin/rex" }),
+    );
 }
 
 test "source rejects unknown name" {

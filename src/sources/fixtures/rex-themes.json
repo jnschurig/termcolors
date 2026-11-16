@@ -1,0 +1,61 @@
+[
+  {
+    "id": "fixture-dark",
+    "name": "Fixture Dark",
+    "appearance": "dark",
+    "source": {
+      "background": "#101418",
+      "foreground": "#d0d4d8",
+      "cursor": "#3377ee",
+      "cursorText": "#f0f4f8",
+      "selectionBackground": "#2a3540",
+      "selectionForeground": "#fafbfc",
+      "ansi": [
+        "#000001", "#110002", "#001103", "#111104", "#000015", "#110016", "#001117", "#aaaaa8",
+        "#555559", "#ff000a", "#00ff0b", "#ffff0c", "#0000fd", "#ff00fe", "#00ffef", "#fffff0"
+      ],
+      "paletteGenerate": true,
+      "paletteOverrides": {},
+      "displayP3": { "background": "color(display-p3 0.06 0.08 0.09)" }
+    },
+    "palette": [{ "colorSpace": "display-p3", "red": 0.1, "green": 0.2, "blue": 0.3, "alpha": 1 }],
+    "semantic": {},
+    "cssVariables": {}
+  },
+  {
+    "id": "fixture-light",
+    "name": "Fixture Light",
+    "appearance": "light",
+    "source": {
+      "background": "#fdfdfd",
+      "foreground": "#202428",
+      "cursor": "#0055cc",
+      "cursorText": "#ffffff",
+      "selectionBackground": "#c8d8f0",
+      "selectionForeground": "#101010",
+      "ansi": [
+        "#202020", "#c01010", "#10a010", "#a08010", "#1040c0", "#9020a0", "#108090", "#d0d0d0",
+        "#606060", "#e03030", "#30c030", "#c0a030", "#3060e0", "#b040c0", "#30a0b0", "#f8f8f8"
+      ]
+    }
+  },
+  {
+    "id": "fixture-sparse",
+    "name": "Fixture Sparse",
+    "appearance": "dark",
+    "source": {
+      "background": "#000000",
+      "foreground": "#ffffff",
+      "cursorText": "",
+      "ansi": [
+        "#000000", "#800000", "#008000", "#808000", "#000080", "#800080", "#008080", "#c0c0c0",
+        "#808080", "#ff0000", "#00ff00", "#ffff00", "#0000ff", "#ff00ff", "#00ffff", "#ffffff"
+      ]
+    }
+  },
+  {
+    "id": "fixture-short-ansi",
+    "name": "Fixture Short",
+    "source": { "background": "#000000", "foreground": "#ffffff", "ansi": ["#000000", "#ffffff"] }
+  }
+]

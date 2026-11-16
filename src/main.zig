@@ -5,6 +5,7 @@ const palette = @import("palette.zig");
 const output = @import("output.zig");
 const osc_source = @import("sources/osc.zig");
 const ghostty_source = @import("sources/ghostty.zig");
+const rex_source = @import("sources/rex.zig");
 
 pub fn main(init: std.process.Init) !u8 {
     const gpa = init.gpa;
@@ -106,10 +107,7 @@ pub fn main(init: std.process.Init) !u8 {
             return try writeOutput(gpa, io, ctx, opts);
         },
         .emulator => |e| {
-            var result = ghostty_source.acquire(gpa, io, opts, e.binary) catch |err| {
-                emitGhosttyError(err);
-                return 4;
-            };
+            var result = acquireEmulator(gpa, io, opts, init.environ_map, e, true) orelse return 4;
             defer result.deinit(gpa);
             const ctx = output.Context{
                 .palette = result.palette,
@@ -144,17 +142,17 @@ pub fn main(init: std.process.Init) !u8 {
 
             // Try fallback emulator if configured.
             if (fallback) |e| {
-                if (ghostty_source.acquire(gpa, io, opts, e.binary)) |ghostty_result_val| {
-                    var ghostty_result = ghostty_result_val;
-                    defer ghostty_result.deinit(gpa);
+                if (acquireEmulator(gpa, io, opts, init.environ_map, e, false)) |emu_result_val| {
+                    var emu_result = emu_result_val;
+                    defer emu_result.deinit(gpa);
                     const ctx = output.Context{
-                        .palette = ghostty_result.palette,
+                        .palette = emu_result.palette,
                         .queried_at = ts,
                         .source = e.name,
-                        .theme = ghostty_result.theme,
+                        .theme = emu_result.theme,
                     };
                     return try writeOutput(gpa, io, ctx, opts);
-                } else |_| {
+                } else {
                     // fallback failed; emit a one-line stderr advisory but continue
                     // to whatever the OSC step produced (possibly all-null).
                     std.debug.print("termcolors: fallback source '{s}' failed; using OSC result\n", .{e.name});
@@ -225,6 +223,67 @@ fn oscSufficient(r: osc_source.Result, min_palette: u8) bool {
     return filled >= min_palette;
 }
 
+/// Common shape of every emulator source's result.
+const EmulatorResult = struct {
+    palette: palette.Palette,
+    theme: ?[]u8,
+    indexed_owner: []?palette.Color,
+
+    fn deinit(self: *EmulatorResult, allocator: std.mem.Allocator) void {
+        allocator.free(self.indexed_owner);
+        if (self.theme) |t| allocator.free(t);
+        self.* = undefined;
+    }
+};
+
+/// Run the emulator source named by `e`. Returns null on failure; when
+/// `report` is set, the source-specific diagnostic goes to stderr first.
+fn acquireEmulator(
+    gpa: std.mem.Allocator,
+    io: std.Io,
+    opts: cli.Options,
+    env_map: *const std.process.Environ.Map,
+    e: cli.Source.Emulator,
+    report: bool,
+) ?EmulatorResult {
+    if (std.mem.eql(u8, e.name, "rex")) {
+        const r = rex_source.acquire(gpa, io, opts, env_map) catch |err| {
+            if (report) emitRexError(err);
+            return null;
+        };
+        return .{ .palette = r.palette, .theme = r.theme, .indexed_owner = r.indexed_owner };
+    }
+    const r = ghostty_source.acquire(gpa, io, opts, e.binary) catch |err| {
+        if (report) emitGhosttyError(err);
+        return null;
+    };
+    return .{ .palette = r.palette, .theme = r.theme, .indexed_owner = r.indexed_owner };
+}
+
+fn emitRexError(err: rex_source.AcquireError) void {
+    const detail = rex_source.last_detail[0..rex_source.last_detail_len];
+    switch (err) {
+        rex_source.AcquireError.UnsupportedPlatform => {
+            std.debug.print("termcolors: the rex source is only supported on macOS\n", .{});
+        },
+        rex_source.AcquireError.AppNotFound => {
+            std.debug.print("termcolors: Rex app not found: {s}\n", .{detail});
+        },
+        rex_source.AcquireError.ThemeIdMissing => {
+            std.debug.print("termcolors: Rex theme not configured: {s}\n", .{detail});
+        },
+        rex_source.AcquireError.ThemeNotFound => {
+            std.debug.print("termcolors: Rex {s}\n", .{detail});
+        },
+        rex_source.AcquireError.MalformedThemes => {
+            std.debug.print("termcolors: Rex themes file malformed: {s}\n", .{detail});
+        },
+        rex_source.AcquireError.OutOfMemory => {
+            std.debug.print("termcolors: out of memory\n", .{});
+        },
+    }
+}
+
 fn emitGhosttyError(err: ghostty_source.AcquireError) void {
     switch (err) {
         ghostty_source.AcquireError.BinaryNotFound => {
@@ -267,4 +326,5 @@ test {
     std.testing.refAllDecls(@This());
     _ = @import("sources/osc.zig");
     _ = @import("sources/ghostty.zig");
+    _ = @import("sources/rex.zig");
 }

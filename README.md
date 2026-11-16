@@ -69,8 +69,8 @@ The OSC probe needs a live terminal. When `termcolors` runs in a headless contex
 |------|----------|
 | `auto` (default) | Run OSC first; if the result is insufficient, fall back to the configured emulator (see below). Never hard-fails — returns a null-filled palette as a last resort. |
 | `osc` | OSC only. Hard-fails with exit 2 if no TTY. |
-| `<emulator-name>` | Skip OSC; invoke that emulator's CLI directly. This cycle: `ghostty`. |
-| `<absolute-path>` | Skip OSC; invoke this exact binary. The basename must match a compiled-in source (e.g. `/opt/homebrew/bin/ghostty`). |
+| `<emulator-name>` | Skip OSC; read the colors from that emulator directly. Available: `ghostty` (runs its CLI), `rex` (reads its preferences and bundled themes; see [Rex](#rex)). |
+| `<absolute-path>` | Skip OSC; invoke this exact binary. The basename must match a compiled-in source that runs a binary (e.g. `/opt/homebrew/bin/ghostty`). Not available for `rex`. |
 
 Example: produce the active Ghostty palette from inside nvim's `:terminal`:
 
@@ -82,7 +82,7 @@ termcolors --source ghostty
 
 In `auto` mode, the fallback emulator (used when OSC fails or returns too few colors) comes from one of these, in priority order:
 
-1. `$TERMCOLORS_TERMINAL` environment variable. Value: an emulator name (e.g. `ghostty`) or an absolute path. Mode keywords (`auto`, `osc`) are not valid here.
+1. `$TERMCOLORS_TERMINAL` environment variable. Value: an emulator name (`ghostty`, `rex`) or an absolute path. Mode keywords (`auto`, `osc`) are not valid here.
 2. Config file key `termcolors_source` (see next section).
 
 If neither is set, `auto` runs OSC only — and silently degrades to a null-filled palette if even OSC produces nothing. Callers can branch on the data (`palette[0] == null`?) rather than on exit codes.
@@ -97,7 +97,7 @@ Recognized keys:
 
 | Key | Meaning |
 |-----|---------|
-| `termcolors_source` | Fallback emulator for `--source auto`. Value: a known source name (`ghostty`) or an absolute path whose basename matches a known source. |
+| `termcolors_source` | Fallback emulator for `--source auto`. Value: a known source name (`ghostty`, `rex`) or an absolute path whose basename matches a known source. |
 
 Minimal example:
 
@@ -110,7 +110,27 @@ termcolors_source = ghostty
 
 `meta.source` (always present in every format) records which source actually produced the colors — `"osc"` or an emulator name. Treat it as an open string set: future versions will add more values. Don't strict-enum-check it.
 
-`meta.theme` is the theme name reported by emulator sources that expose one (Ghostty); `null` for OSC.
+`meta.theme` is the theme name reported by emulator sources that expose one (Ghostty, Rex); `null` for OSC.
+
+### Rex
+
+[Rex](https://www.superlogical.com/rex) works over OSC with no configuration: in a normal pane it answers the 16 palette slots, foreground, background and cursor. It does not answer the selection-color queries, so `selection_background` and `selection_foreground` are `null` and listed in `meta.unsupported`.
+
+`--source rex` reads the active theme without a TTY and also fills `cursor_text`, both selection colors and `meta.theme`:
+
+```sh
+termcolors --source rex
+```
+
+It looks up the theme selected in Rex's preferences (the dark or light one, following Rex's Color scheme setting and otherwise the system appearance) in the `themes.json` shipped inside the Rex app. Limits:
+
+- macOS only. On other platforms it exits 4.
+- Built-in themes only. A custom theme exits 4.
+- It reports what the preferences say, not what a particular pane shows. Colors a program changed in a pane are not reflected.
+- It expects `Rex Beta.app` or `Rex.app` in `/Applications` or `~/Applications` and the `com.superlogical.rex` preferences. A second install, or a release channel with a different app name or preferences domain, is not detected.
+- It depends on undocumented Rex internals and may break with a Rex update; the exit-4 message names the key or file that failed.
+- With `--include-256`, indices 16–255 are `null`.
+- There is no absolute-path form.
 
 ## Exit codes
 
@@ -120,7 +140,7 @@ termcolors_source = ghostty
 | 1    | argument error or config-file error |
 | 2    | `--source osc` with no controlling tty |
 | 3    | running inside a multiplexer with no passthrough (when no fallback succeeded) |
-| 4    | emulator source failed: binary missing, subprocess error, or malformed output |
+| 4    | emulator source failed: binary or app missing, subprocess error, malformed output, unsupported platform, or theme not found |
 
 ## Development
 
