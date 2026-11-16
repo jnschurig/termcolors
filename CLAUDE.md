@@ -27,7 +27,7 @@ The pipeline is a one-shot probe with sharp module seams. Flow:
 
 `cli` → `multiplexer` (wrap if inside tmux/screen) → `terminal` (open `/dev/tty`, enter raw mode) → `query` (batch-write OSC queries, read replies with one bounded loop) → `parser` (decode `rgb:`/`rgba:` replies, both terminator forms) → `convert` (rgb → chosen notation) → `output` (serialize) → restore TTY → stdout.
 
-That flow is the OSC source (`src/sources/osc.zig`). `--source <emulator>` skips it and reads colors without a TTY from an emulator source: `src/sources/ghostty.zig` (runs `ghostty +show-config`) or `src/sources/rex.zig` (macOS prefs + the Rex app's bundled `themes.json`; pure `parseThemes`/`resolveScheme`, with all platform-specific lookup in `locate`). `main.zig` dispatches on source name in `acquireEmulator`; `--source auto` tries OSC first, then the configured fallback emulator.
+That flow is the OSC source (`src/sources/osc.zig`). `--source <emulator>` skips it and reads colors without a TTY from an emulator source: `src/sources/ghostty.zig` (runs `ghostty +show-config`) or `src/sources/rex.zig` (macOS prefs + the Rex app's bundled `themes.json`, falling back to the `Workspace.customThemes` pref for custom/imported themes; pure `parseThemes`/`parseCustomThemes`/`resolveTheme`/`resolveScheme`/`extractPlistData`, with all platform-specific lookup in `locate` and `readCustomThemes`). `main.zig` dispatches on source name in `acquireEmulator`; `--source auto` tries OSC first, then the configured fallback emulator.
 
 Key invariants to preserve when editing:
 
