@@ -147,6 +147,15 @@ test "termcolors_source with known name" {
     }
 }
 
+test "termcolors_source = rex" {
+    var cfg = try parseText(std.testing.allocator, "termcolors_source = rex\n");
+    defer cfg.deinit(std.testing.allocator);
+    switch (cfg.termcolors_source.?) {
+        .emulator => |e| try std.testing.expectEqualStrings("rex", e.name),
+        else => return error.TestUnexpectedResult,
+    }
+}
+
 test "termcolors_source with absolute path" {
     var cfg = try parseText(std.testing.allocator, "termcolors_source=/opt/homebrew/bin/ghostty\n");
     defer cfg.deinit(std.testing.allocator);

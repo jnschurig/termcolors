@@ -38,6 +38,19 @@ Queries are batched: all sequences are written at once, then responses are read 
 
 The TTY is accessed via `/dev/tty` directly, never stdin or stdout — the tool must work correctly when piped.
 
+### Emulator sources
+
+OSC needs a live terminal. For headless contexts, `--source <emulator>` reads the colors from a specific emulator instead, and `--source auto` can fall back to one. These are per-emulator and deliberately few:
+
+- **ghostty** — runs `ghostty +show-config` and parses its output.
+- **rex** — reads the selected theme ID from Rex's macOS preferences (`com.superlogical.rex`: `Workspace.appearance`, `Workspace.darkThemeID`, `Workspace.lightThemeID`) and looks it up in the `themes.json` inside the Rex app bundle. macOS only, built-in themes only, and dependent on undocumented Rex internals.
+
+An emulator source that fails exits with code 4.
+
+### Verified terminals
+
+- **Rex** — over OSC, a normal pane answers palette 0–15, foreground, background and cursor; selection background/foreground get no reply. Pinned by an integration test with a Rex-shaped reply set. The selection colors and cursor text color are available only through the `rex` emulator source.
+
 ## Architecture
 
 The codebase is divided into modules with sharp seams:
@@ -226,4 +239,5 @@ These are deferred to keep v1 scope tight. None require breaking the schema to a
 - **`meta.app_version`.** An optional field reporting the binary's release version. Useful for consumer-side debugging against specific releases, and cheap to add once the project has a release process.
 - **Additional special slots.** Bold color (some terminals distinguish bold from bright), mouse cursor foreground, link/underline color. Out of v1, revisit if a real consumer needs them.
 - **256-color aliases.** Indices 16–255 form a structured 6×6×6 cube plus a grayscale ramp; they're canonically referred to by index. We could expose names if a consumer asks, but the index identifier stays primary.
+- **Rex on Linux, and Rex in CI.** The `rex` source is macOS-only because that is the only Rex client today. When a Linux client and a public release exist: add a Linux branch to the source's platform lookup (using the XDG desktop portal `org.freedesktop.appearance` color-scheme for dark/light rather than per-desktop lookups), and run tests against a real Rex install in CI. Custom Rex themes (prefs key `Workspace.customThemes`) are also unsupported for now.
 - **Windows support.** Windows Terminal speaks OSC and could be supported; the Windows console host has a different model. Better as a separate design pass than retrofitted into v1.

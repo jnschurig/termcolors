@@ -27,6 +27,8 @@ The pipeline is a one-shot probe with sharp module seams. Flow:
 
 `cli` → `multiplexer` (wrap if inside tmux/screen) → `terminal` (open `/dev/tty`, enter raw mode) → `query` (batch-write OSC queries, read replies with one bounded loop) → `parser` (decode `rgb:`/`rgba:` replies, both terminator forms) → `convert` (rgb → chosen notation) → `output` (serialize) → restore TTY → stdout.
 
+That flow is the OSC source (`src/sources/osc.zig`). `--source <emulator>` skips it and reads colors without a TTY from an emulator source: `src/sources/ghostty.zig` (runs `ghostty +show-config`) or `src/sources/rex.zig` (macOS prefs + the Rex app's bundled `themes.json`; pure `parseThemes`/`resolveScheme`, with all platform-specific lookup in `locate`). `main.zig` dispatches on source name in `acquireEmulator`; `--source auto` tries OSC first, then the configured fallback emulator.
+
 Key invariants to preserve when editing:
 
 - **TTY isolation:** all terminal I/O goes through `/dev/tty` (never stdin/stdout) so the tool works under pipes. `terminal.zig` owns raw-mode lifecycle and must restore on every exit path including panics/signals.
@@ -35,4 +37,4 @@ Key invariants to preserve when editing:
 - **Multiplexer passthrough:** when `TMUX`/`STY` is set, queries are wrapped so the host terminal sees them. If every reply is missing inside a multiplexer, exit 3 with the tmux passthrough hint (see `main.zig`).
 - **Module purity:** `parser`, `convert`, and `multiplexer` are pure over their inputs; don't pull TTY or allocator state into them.
 
-Exit codes: `0` success, `1` argument error, `2` no controlling tty, `3` multiplexer with no passthrough.
+Exit codes: `0` success, `1` argument error, `2` no controlling tty, `3` multiplexer with no passthrough, `4` emulator source failed.
