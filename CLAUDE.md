@@ -12,12 +12,12 @@ See `terminal-colors-design.md` for the authoritative design (color acquisition 
 
 - `zig build` — build debug binary into `zig-out/bin/termcolors`.
 - `zig build run -- <args>` — build and run (pass CLI args after `--`).
-- `zig build test` — run unit tests (entry point is `test {}` in `src/main.zig`, which `refAllDecls` all modules; tests live alongside source).
+- `zig build test` — run unit tests (entry point is `test {}` in `src/main.zig`, which `refAllDecls` all modules and imports each `src/tests/**/<file>_test.zig`; tests live there (mirroring `src/`, fixtures in `src/tests/fixtures/`), so anything they exercise must be `pub`).
 - `zig build test-integration` — run PTY-backed integration tests in `tests/integration.zig`. Forks the real binary under `forkpty`, replies to its OSC queries with a fixture palette, asserts on stdout + exit code. Covers the TTY/query/read pipeline that pure-module tests can't reach.
 - `zig build release` — cross-compile static release binaries for the four supported targets (linux x86_64/aarch64 musl, macOS x86_64/aarch64) into `zig-out/dist/<triple>/`.
 - `zig fmt src/ tests/` — format. `zig fmt --check` runs in pre-commit; `zig build` and `zig build test` run on pre-push.
 
-To run a single unit test, use `zig test src/<file>.zig` (or add a temporary filter); there is no per-test `build.zig` step.
+To run a single unit test, use `zig test -lc --test-filter "<name>" src/main.zig` (test files import `../`, so running `zig test` on one directly fails); there is no per-test `build.zig` step.
 
 CI (`.github/workflows/ci.yml`): matrix over `ubuntu-latest` + `macos-latest` runs fmt-check, build, unit tests, and integration tests on every push/PR. Tagged pushes (`v*`) build cross-compiled release binaries and publish a GitHub Release; workflow_dispatch runs the release job as a dry-run that uploads artifacts without publishing.
 
